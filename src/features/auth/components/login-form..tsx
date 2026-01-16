@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -35,6 +36,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const router = useRouter();
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -46,18 +48,21 @@ export function LoginForm() {
   const isPending = form.formState.isSubmitting;
 
   const onSubmit = async (values: LoginFormValues) => {
-    await authClient.signIn.email({
-      email: values.email,
-      password: values.password,
-      callbackURL: "/",
-    }, {
-      onSuccess: () => {
-        router.push('/');
+    await authClient.signIn.email(
+      {
+        email: values.email,
+        password: values.password,
+        callbackURL: "/",
       },
-      onError: (ctx) => {
-        toast.error(ctx.error.message);
-    }
-    })
+      {
+        onSuccess: () => {
+          router.push("/");
+        },
+        onError: (ctx) => {
+          toast.error(ctx.error.message);
+        },
+      }
+    );
   };
 
   // Mouse-based 3D tilt
@@ -79,8 +84,8 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background overflow-hidden">
-      {/* Animated background glow */}
+    <>
+      {/* Background glow */}
       <motion.div
         className="absolute h-[500px] w-[500px] rounded-full bg-primary/20 blur-3xl"
         animate={{ scale: [1, 1.2, 1], opacity: [0.4, 0.6, 0.4] }}
@@ -101,14 +106,15 @@ export function LoginForm() {
             <CardTitle className="text-2xl font-semibold">
               Welcome Back
             </CardTitle>
-            <CardDescription>
-              Login to continue
-            </CardDescription>
+            <CardDescription>Login to continue</CardDescription>
           </CardHeader>
 
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-6"
+              >
                 <div className="space-y-3">
                   <Button
                     variant="outline"
@@ -116,14 +122,29 @@ export function LoginForm() {
                     type="button"
                     disabled={isPending}
                   >
+                    <Image
+                      alt="GitHub"
+                      src="/logos/github.svg"
+                      width={20}
+                      height={20}
+                      className="mr-2"
+                    />
                     Continue with GitHub
                   </Button>
+
                   <Button
                     variant="outline"
                     className="w-full transition hover:scale-[1.02]"
                     type="button"
                     disabled={isPending}
                   >
+                    <Image
+                      alt="Google"
+                      src="/logos/google.svg"
+                      width={20}
+                      height={20}
+                      className="mr-2"
+                    />
                     Continue with Google
                   </Button>
                 </div>
@@ -194,6 +215,6 @@ export function LoginForm() {
           </CardContent>
         </Card>
       </motion.div>
-    </div>
+    </>
   );
 }
