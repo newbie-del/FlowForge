@@ -25,21 +25,23 @@ import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import Image from "next/image";
 
-const RegisterSchema = z.object({
-  email: z.string().email("Please enter a valid email"),
-  password: z.string().min(1, "Password is required"),
-  confirmPassword: z.string(),
-})
-.refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
+const RegisterSchema = z
+  .object({
+    email: z.string().email("Please enter a valid email"),
+    password: z.string().min(1, "Password is required"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 type RegisterFormValues = z.infer<typeof RegisterSchema>;
 
 export function RegisterForm() {
-  const Router = useRouter(); // ✅ FIX: hook moved inside component
+  const router = useRouter();
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(RegisterSchema),
@@ -62,12 +64,12 @@ export function RegisterForm() {
       },
       {
         onSuccess: () => {
-          Router.push("/");
+          router.push("/");
         },
         onError: (ctx) => {
           toast.error(ctx.error.message);
         },
-      } // ✅ FIX: object properly closed
+      }
     );
   };
 
@@ -90,7 +92,8 @@ export function RegisterForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background overflow-hidden">
+    <>
+      {/* Background glow */}
       <motion.div
         className="absolute h-[500px] w-[500px] rounded-full bg-primary/20 blur-3xl"
         animate={{ scale: [1, 1.2, 1], opacity: [0.4, 0.6, 0.4] }}
@@ -118,7 +121,10 @@ export function RegisterForm() {
 
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-6"
+              >
                 <div className="space-y-3">
                   <Button
                     variant="outline"
@@ -126,14 +132,29 @@ export function RegisterForm() {
                     type="button"
                     disabled={isPending}
                   >
+                    <Image
+                      alt="GitHub"
+                      src="/logos/github.svg"
+                      width={20}
+                      height={20}
+                      className="mr-2"
+                    />
                     Continue with GitHub
                   </Button>
+
                   <Button
                     variant="outline"
                     className="w-full transition hover:scale-[1.02]"
                     type="button"
                     disabled={isPending}
                   >
+                    <Image
+                      alt="Google"
+                      src="/logos/google.svg"
+                      width={20}
+                      height={20}
+                      className="mr-2"
+                    />
                     Continue with Google
                   </Button>
                 </div>
@@ -206,9 +227,9 @@ export function RegisterForm() {
 
                 <motion.div whileTap={{ scale: 0.96 }}>
                   <Button className="w-full">
-                    {isPending ? "signing in..." : "Sign Up"}
+                    {isPending ? "Signing up..." : "Sign Up"}
                   </Button>
-                </motion.div> 
+                </motion.div>
 
                 <p className="text-center text-sm text-muted-foreground">
                   Already have an account?{" "}
@@ -224,6 +245,6 @@ export function RegisterForm() {
           </CardContent>
         </Card>
       </motion.div>
-    </div>
+    </>
   );
 }
