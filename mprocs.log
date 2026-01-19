@@ -32,3 +32,5 @@ ERROR [portable_pty::win::psuedocon] CreateProcessW `"C:\\nvm4w\\nodejs\\npm run
 ERROR [lib::error] Error: channel closed
 ERROR [portable_pty::win::psuedocon] CreateProcessW `"C:\\nvm4w\\nodejs\\npm run dev\0"` in cwd `Some("D:\\Flowforge-ai\\flowforge\0")` failed: %1 is not a valid Win32 application. (os error 193)
 ERROR [portable_pty::win::psuedocon] CreateProcessW `"C:\\nvm4w\\nodejs\\npm run inngest:dev\0"` in cwd `Some("D:\\Flowforge-ai\\flowforge\0")` failed: %1 is not a valid Win32 application. (os error 193)
+ERROR [portable_pty::win::psuedocon] CreateProcessW `"C:\\nvm4w\\nodejs\\npm run dev\0"` in cwd `Some("D:\\Flowforge-ai\\flowforge\0")` failed: %1 is not a valid Win32 application. (os error 193)
+ERROR [portable_pty::win::psuedocon] CreateProcessW `"C:\\nvm4w\\nodejs\\npm run inngest:dev\0"` in cwd `Some("D:\\Flowforge-ai\\flowforge\0")` failed: %1 is not a valid Win32 application. (os error 193)
