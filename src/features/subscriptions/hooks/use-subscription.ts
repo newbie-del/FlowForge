@@ -8,6 +8,7 @@ export const useSubscription = () => {
             const {data} = await authClient.customer.state();
             return data;
         },
+        staleTime: 5 * 60 * 1000,
     });
 };
 

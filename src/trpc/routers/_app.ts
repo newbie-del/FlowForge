@@ -16,8 +16,15 @@ export const appRouter = createTRPCRouter({
 
   }),
   getWorkflows: protectedProcedure.query(({ ctx }) => {
-    return  prisma.workflow.findMany({
-      
+    return prisma.workflow.findMany({
+      where: { userId: ctx.auth.user.id },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }),
   createWorkflow: protectedProcedure.mutation(async () => {

@@ -46,10 +46,16 @@ export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
     },
   });
 });
+
+// Cache the Polar customer state lookup per user for the lifetime of the
+// current React request so that multiple premiumProcedure calls in the same
+// request batch do not each fire a separate network round-trip.
+const getCustomerState = cache(async (userId: string) => {
+  return polarClient.customers.getStateExternal({ externalId: userId });
+});
+
 export const premiumProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  const customer = await polarClient.customers.getStateExternal({
-    externalId: ctx.auth.user.id,
-  });
+  const customer = await getCustomerState(ctx.auth.user.id);
 
   if (
     !customer.activeSubscriptions ||
@@ -60,6 +66,5 @@ export const premiumProcedure = protectedProcedure.use(async ({ ctx, next }) => 
       message: "Active subscription required",
     });
   }
-  return next ({ ctx: {...ctx, customer}});
-  },
-);
+  return next({ ctx: { ...ctx, customer } });
+});
