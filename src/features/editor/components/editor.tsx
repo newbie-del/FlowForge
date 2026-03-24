@@ -1,6 +1,6 @@
 "use client";
 
-import {useState, useCallback} from "react";
+import {useState, useCallback, useEffect} from "react";
 import{
     ReactFlow,
     addEdge,
@@ -21,6 +21,7 @@ import { ErrorView, LoadingView } from "@/components/entity-components";
 import { useSuspenseWorkflow } from "@/features/workflows/hooks/use-workflows";
 import "@xyflow/react/dist/style.css";
 import { nodeComponents } from "@/config/node-components";
+import { normalizeNodeType } from "@/lib/node-type";
 import { AddNodeButton } from "./add-node-button";
 
 export const EditorLoading = () => {
@@ -38,6 +39,27 @@ export const Editor = ({ workflowId }: { workflowId: string }) => {
 
     const [nodes, setNodes] = useState<Node[]>(workflow.nodes);
     const [edges, setEdges] = useState<Edge[]>(workflow.edges);
+
+    useEffect(() => {
+        console.log("[flowforge][editor] nodeTypes keys", Object.keys(nodeComponents));
+    }, []);
+
+    useEffect(() => {
+        console.log("[flowforge][editor] nodes state", nodes.map((node) => ({
+            id: node.id,
+            type: node.type,
+            normalizedType: normalizeNodeType(String(node.type)),
+            position: node.position,
+        })));
+    }, [nodes]);
+
+    useEffect(() => {
+        console.log("[flowforge][editor] initial workflow nodes", workflow.nodes.map((node) => ({
+            id: node.id,
+            type: node.type,
+            normalizedType: normalizeNodeType(String(node.type)),
+        })));
+    }, [workflow.nodes]);
     
     const onNodesChange = useCallback(
     (changes: NodeChange[]) => setNodes((nodesSnapshot) => applyNodeChanges(changes, nodesSnapshot)),
