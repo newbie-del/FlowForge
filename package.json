@@ -7,6 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "biome check",
+    "ngrok:dev": "ngrok http --url=clemencia-exhaustive-amusively.ngrok-free.dev 3000",
     "format": "biome format --write",
     "inngest:dev": "inngest-cli dev",
     "dev:all": "mprocs"
@@ -93,6 +94,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/toposort": "^2.0.7",
+    "dotenv-cli": "^10.0.0",
     "inngest-cli": "^1.12.1",
     "mprocs": "^0.8.2",
     "prisma": "^6.16.3",

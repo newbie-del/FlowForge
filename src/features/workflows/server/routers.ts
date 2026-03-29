@@ -7,6 +7,7 @@ import {Node, Edge,} from "@xyflow/react";
 import {  NodeType } from "@/generated/prisma";
 import { exec } from "child_process";
 import { inngest } from "@/inngest/client";
+import { sendWorkflowExecution } from "@/inngest/utils";
 
 export const workflowsRouter = createTRPCRouter ({
     execute: protectedProcedure
@@ -23,6 +24,11 @@ export const workflowsRouter = createTRPCRouter ({
                 name: "workflows/execute.workflow",
                 data: {workflowId: input.id},
             });
+
+            await sendWorkflowExecution({
+                workflowId: input.id,
+            });
+            
             return workflow;
         }),
     create: premiumProcedure.mutation(({ctx}) => {
