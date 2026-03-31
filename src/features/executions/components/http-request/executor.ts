@@ -24,7 +24,7 @@ export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({
     context,
     step,
     publish,
-}) => {``
+}) => {
     await publish(
         httpRequestChannel().status({
             nodeId,
