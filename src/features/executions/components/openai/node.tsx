@@ -9,7 +9,8 @@ import { OPENAI_CHANNEL_NAME } from "@/inngest/channels/openai";
 import { OpenAiDialog, OpenAiFormValues } from "./dialog";
 
 type OpenAiNodeData = {
-    variableName?: string;   
+    variableName?: string;  
+    credentialId?: string; 
     systemPrompt?: string;
     userPrompt?: string;
 };
