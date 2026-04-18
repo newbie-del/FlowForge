@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "CredentialType" ADD VALUE 'GOOGLE_SHEETS';
+
+-- AlterEnum
+ALTER TYPE "NodeType" ADD VALUE 'GOOGLE_SHEETS';
