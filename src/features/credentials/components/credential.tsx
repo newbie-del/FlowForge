@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { CredentialType } from "@/generated/prisma";
 import { useUpgradeModal } from "@/hooks/use-upgrade-modal";
 import {
@@ -52,6 +53,12 @@ const formSchema = z
     host: z.string().optional(),
     port: z.coerce.number().int().positive().optional(),
     secure: z.boolean(),
+    googleAuthType: z.enum(["service_account", "oauth"]).optional(),
+    serviceAccountJson: z.string().optional(),
+    clientId: z.string().optional(),
+    clientSecret: z.string().optional(),
+    refreshToken: z.string().optional(),
+    redirectUri: z.string().optional(),
   })
   .superRefine((values, ctx) => {
     if (values.type === CredentialType.SMTP) {
@@ -74,6 +81,52 @@ const formSchema = z
           code: z.ZodIssueCode.custom,
           path: ["smtpPassword"],
           message: "SMTP password is required",
+        });
+      }
+      return;
+    }
+
+    if (values.type === CredentialType.GOOGLE_SHEETS) {
+      const authType = values.googleAuthType;
+      if (!authType) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["googleAuthType"],
+          message: "Google auth type is required",
+        });
+        return;
+      }
+
+      if (authType === "service_account") {
+        if (!values.serviceAccountJson?.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["serviceAccountJson"],
+            message: "Service account JSON is required",
+          });
+        }
+        return;
+      }
+
+      if (!values.clientId?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["clientId"],
+          message: "Client ID is required",
+        });
+      }
+      if (!values.clientSecret?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["clientSecret"],
+          message: "Client secret is required",
+        });
+      }
+      if (!values.refreshToken?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["refreshToken"],
+          message: "Refresh token is required",
         });
       }
       return;
@@ -111,6 +164,11 @@ const credentialTypeOptions = [
     label: "SMTP",
     logo: "",
   },
+  {
+    value: CredentialType.GOOGLE_SHEETS,
+    label: "Google Sheets",
+    logo: "/logos/googlesheets.svg",
+  },
 ];
 
 interface CredentialFormProps {
@@ -131,6 +189,15 @@ type SmtpCredentialValue = {
   secure?: boolean;
 };
 
+type GoogleSheetsCredentialValue = {
+  authType: "service_account" | "oauth";
+  serviceAccountJson?: string;
+  clientId?: string;
+  clientSecret?: string;
+  refreshToken?: string;
+  redirectUri?: string;
+};
+
 const parseSmtpCredentialValue = (
   rawValue: string,
 ): Partial<SmtpCredentialValue> => {
@@ -140,6 +207,24 @@ const parseSmtpCredentialValue = (
 
   try {
     const parsed = JSON.parse(rawValue) as Partial<SmtpCredentialValue>;
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+    return parsed;
+  } catch {
+    return {};
+  }
+};
+
+const parseGoogleSheetsCredentialValue = (
+  rawValue: string,
+): Partial<GoogleSheetsCredentialValue> => {
+  if (!rawValue) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<GoogleSheetsCredentialValue>;
     if (!parsed || typeof parsed !== "object") {
       return {};
     }
@@ -160,6 +245,10 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
     initialData?.type === CredentialType.SMTP
       ? parseSmtpCredentialValue(initialData.value)
       : {};
+  const googleSheetsDefaults =
+    initialData?.type === CredentialType.GOOGLE_SHEETS
+      ? parseGoogleSheetsCredentialValue(initialData.value)
+      : {};
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -176,6 +265,12 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
       host: smtpDefaults.host || "",
       port: smtpDefaults.port,
       secure: smtpDefaults.secure ?? false,
+      googleAuthType: googleSheetsDefaults.authType || "service_account",
+      serviceAccountJson: googleSheetsDefaults.serviceAccountJson || "",
+      clientId: googleSheetsDefaults.clientId || "",
+      clientSecret: googleSheetsDefaults.clientSecret || "",
+      refreshToken: googleSheetsDefaults.refreshToken || "",
+      redirectUri: googleSheetsDefaults.redirectUri || "",
     },
   });
 
@@ -193,7 +288,17 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
               port: values.port,
               secure: values.secure,
             })
-          : values.value?.trim() || "",
+          : values.type === CredentialType.GOOGLE_SHEETS
+            ? JSON.stringify({
+                authType: values.googleAuthType,
+                serviceAccountJson:
+                  values.serviceAccountJson?.trim() || undefined,
+                clientId: values.clientId?.trim() || undefined,
+                clientSecret: values.clientSecret?.trim() || undefined,
+                refreshToken: values.refreshToken?.trim() || undefined,
+                redirectUri: values.redirectUri?.trim() || undefined,
+              })
+            : values.value?.trim() || "",
     };
 
     if (isEdit && initialData?.id) {
@@ -214,6 +319,8 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
   };
   const selectedType = form.watch("type");
   const isSmtpType = selectedType === CredentialType.SMTP;
+  const isGoogleSheetsType = selectedType === CredentialType.GOOGLE_SHEETS;
+  const googleAuthType = form.watch("googleAuthType");
 
   return (
     <>
@@ -287,7 +394,7 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                 control={form.control}
                 name="value"
                 render={({ field }) =>
-                  !isSmtpType ? (
+                  !isSmtpType && !isGoogleSheetsType ? (
                     <FormItem>
                       <FormLabel>API Key</FormLabel>
                       <FormControl>
@@ -304,6 +411,36 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
               />
               {isSmtpType && (
                 <>
+                  <div className="rounded-md border bg-muted/30 p-4 text-sm">
+                    <p className="font-medium">Quick setup: SMTP (Email)</p>
+                    <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
+                      <li>
+                        For Gmail, use{" "}
+                        <span className="font-mono text-xs">
+                          smtp.gmail.com
+                        </span>{" "}
+                        and port <span className="font-mono text-xs">587</span>.
+                      </li>
+                      <li>
+                        Turn on 2-Step Verification in your Google account.
+                      </li>
+                      <li>
+                        Create a Gmail App Password and paste it as SMTP
+                        Password.
+                      </li>
+                      <li>
+                        Use your full email as SMTP Username and Email Address.
+                      </li>
+                    </ol>
+                    <a
+                      className="mt-3 inline-block text-xs text-primary underline underline-offset-2"
+                      href="https://support.google.com/accounts/answer/185833"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open Gmail App Password guide
+                    </a>
+                  </div>
                   <FormField
                     control={form.control}
                     name="emailAddress"
@@ -409,6 +546,215 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                   />
                 </>
               )}
+              {isGoogleSheetsType ? (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="googleAuthType"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel>Auth Type</FormLabel>
+                        <FormControl>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <button
+                              type="button"
+                              className={`rounded-md border p-3 text-left transition-colors ${
+                                field.value === "service_account"
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border hover:border-primary/40"
+                              }`}
+                              onClick={() => field.onChange("service_account")}
+                            >
+                              <p className="text-sm font-medium">
+                                Service Account
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Use JSON key and share sheet with service
+                                account email.
+                              </p>
+                            </button>
+                            <button
+                              type="button"
+                              className={`rounded-md border p-3 text-left transition-colors ${
+                                field.value === "oauth"
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border hover:border-primary/40"
+                              }`}
+                              onClick={() => field.onChange("oauth")}
+                            >
+                              <p className="text-sm font-medium">OAuth</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Use your Google account via client credentials +
+                                refresh token.
+                              </p>
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormDescription>
+                          Choose one auth method. Each method has a separate
+                          credential form below.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {googleAuthType === "service_account" ? (
+                    <div className="rounded-md border bg-muted/30 p-4 text-sm">
+                      <p className="font-medium">
+                        Quick setup: Google Sheets Service Account
+                      </p>
+                      <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
+                        <li>Create a service account in Google Cloud.</li>
+                        <li>Create and download a JSON key.</li>
+                        <li>Paste full JSON into the field below.</li>
+                        <li>
+                          Share your spreadsheet with the service account email
+                          (
+                          <span className="font-mono text-xs">
+                            ...iam.gserviceaccount.com
+                          </span>
+                          ).
+                        </li>
+                      </ol>
+                      <a
+                        className="mt-3 inline-block text-xs text-primary underline underline-offset-2"
+                        href="https://cloud.google.com/iam/docs/service-accounts-create"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open Service Account setup guide
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border bg-muted/30 p-4 text-sm">
+                      <p className="font-medium">
+                        Quick setup: Google Sheets OAuth
+                      </p>
+                      <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
+                        <li>Enable Google Sheets API and Google Drive API.</li>
+                        <li>Create OAuth Client ID + Client Secret.</li>
+                        <li>
+                          Add redirect URL{" "}
+                          <span className="font-mono text-xs">
+                            https://developers.google.com/oauthplayground
+                          </span>
+                          .
+                        </li>
+                        <li>
+                          Use OAuth Playground to generate and copy refresh
+                          token.
+                        </li>
+                      </ol>
+                      <a
+                        className="mt-3 inline-block text-xs text-primary underline underline-offset-2"
+                        href="https://developers.google.com/oauthplayground"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open OAuth Playground
+                      </a>
+                    </div>
+                  )}
+
+                  {googleAuthType === "service_account" ? (
+                    <FormField
+                      control={form.control}
+                      name="serviceAccountJson"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Service Account JSON</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              className="min-h-[180px] font-mono text-xs"
+                              placeholder='{"type":"service_account","project_id":"..."}'
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Paste full service account JSON key from Google
+                            Cloud.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="clientId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Client ID</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="xxxxxxxx.apps.googleusercontent.com"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="clientSecret"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Client Secret</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder="GOCSPX-..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="refreshToken"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Refresh Token</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder="1//0g..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="redirectUri"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Redirect URL (Optional)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="https://your-app.com/api/auth/google/callback"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Must match the exact OAuth redirect URL configured
+                              in Google Cloud.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
+                </>
+              ) : null}
 
               <div className="flex gap-4">
                 <Button

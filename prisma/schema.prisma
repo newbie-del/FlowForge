@@ -142,6 +142,7 @@ enum CredentialType {
   ANTHROPIC
   GEMINI
   SMTP
+  GOOGLE_SHEETS
 }
 
 enum NodeType {
@@ -156,6 +157,7 @@ enum NodeType {
   DISCORD
   SLACK
   EMAIL
+  GOOGLE_SHEETS
 }
 
 enum ExecutionStatus {

@@ -122,6 +122,7 @@ const credentialLogos: Record<CredentialType, string> = {
   [CredentialType.ANTHROPIC]: "/logos/anthropic.svg",
   [CredentialType.GEMINI]: "/logos/gemini.svg",
   [CredentialType.SMTP]: "",
+  [CredentialType.GOOGLE_SHEETS]: "/logos/googlesheets.svg",
 };
 
 export const Credentialitem = ({ data }: { data: Credential }) => {

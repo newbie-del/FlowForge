@@ -1,19 +1,20 @@
 import { NonRetriableError } from "inngest";
-import { inngest } from "./client";
-import prisma from "@/lib/db";
-import { topologicalSort } from "./utils";
-import { ExecutionStatus, NodeType } from "@/generated/prisma";
 import { getExecutor } from "@/features/executions/lib/executor-registry";
-import { httpRequestChannel } from "./channels/http-request";
-import { manualTriggerChannel } from "./channels/manual-trigger";
-import { googleFormTriggerChannel } from "./channels/google-form-trigger";
-import { stripeTriggerChannel } from "./channels/stripe-trigger";
-import { geminiChannel } from "./channels/gemini";
-import { openAiChannel } from "./channels/openai";
+import { ExecutionStatus, type NodeType } from "@/generated/prisma";
+import prisma from "@/lib/db";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";
-import { slackChannel } from "./channels/slack";
 import { emailChannel } from "./channels/email";
+import { geminiChannel } from "./channels/gemini";
+import { googleFormTriggerChannel } from "./channels/google-form-trigger";
+import { googleSheetsChannel } from "./channels/google-sheets";
+import { httpRequestChannel } from "./channels/http-request";
+import { manualTriggerChannel } from "./channels/manual-trigger";
+import { openAiChannel } from "./channels/openai";
+import { slackChannel } from "./channels/slack";
+import { stripeTriggerChannel } from "./channels/stripe-trigger";
+import { inngest } from "./client";
+import { topologicalSort } from "./utils";
 
 export const executeWorkflow = inngest.createFunction(
   {
@@ -43,6 +44,7 @@ export const executeWorkflow = inngest.createFunction(
       discordChannel(),
       slackChannel(),
       emailChannel(),
+      googleSheetsChannel(),
     ],
   },
   async ({ event, step, publish }) => {
