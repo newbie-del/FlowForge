@@ -9,25 +9,27 @@ import { openAiExecutor } from "../components/openai/executor";
 import { anthropicExecutor } from "../components/anthropic/executor";
 import { discordExecutor } from "../components/discord/executor";
 import { slackExecutor } from "../components/slack/executor";
+import { emailExecutor } from "../components/email/executor";
 
 export const executorRegistry: Record<NodeType, NodeExecutor> = {
-    [NodeType.INITIAL]: manualTriggerExecutor, 
-    [NodeType.MANUAL_TRIGGER]: manualTriggerExecutor,
-    [NodeType.HTTP_REQUEST]: httpRequestExecutor,
-    [NodeType.GOOGLE_FORM_TRIGGER]: googleFormTriggerExecutor,
-    [NodeType.STRIPE_TRIGGER]: stripeTriggerExecutor,
-    [NodeType.GEMINI]: geminiExecutor,
-    [NodeType.ANTHROPIC]: anthropicExecutor, 
-    [NodeType.OPENAI]: openAiExecutor,
-    [NodeType.DISCORD]: discordExecutor,
-    [NodeType.SLACK]: slackExecutor, 
-}; 
+  [NodeType.INITIAL]: manualTriggerExecutor,
+  [NodeType.MANUAL_TRIGGER]: manualTriggerExecutor,
+  [NodeType.HTTP_REQUEST]: httpRequestExecutor,
+  [NodeType.GOOGLE_FORM_TRIGGER]: googleFormTriggerExecutor,
+  [NodeType.STRIPE_TRIGGER]: stripeTriggerExecutor,
+  [NodeType.GEMINI]: geminiExecutor,
+  [NodeType.ANTHROPIC]: anthropicExecutor,
+  [NodeType.OPENAI]: openAiExecutor,
+  [NodeType.DISCORD]: discordExecutor,
+  [NodeType.SLACK]: slackExecutor,
+  [NodeType.EMAIL]: emailExecutor,
+};
 
 export const getExecutor = (type: NodeType): NodeExecutor => {
-    const executor = executorRegistry[type];
-    if (!executor) {
-        throw new Error(`No executor found for node type: ${type}`);
-    }
+  const executor = executorRegistry[type];
+  if (!executor) {
+    throw new Error(`No executor found for node type: ${type}`);
+  }
 
-    return executor;
+  return executor;
 };
