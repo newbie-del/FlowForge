@@ -141,6 +141,7 @@ enum CredentialType {
   OPENAI
   ANTHROPIC
   GEMINI
+  SMTP
 }
 
 enum NodeType {
@@ -154,6 +155,7 @@ enum NodeType {
   OPENAI
   DISCORD
   SLACK
+  EMAIL
 }
 
 enum ExecutionStatus {

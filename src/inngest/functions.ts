@@ -13,9 +13,11 @@ import { openAiChannel } from "./channels/openai";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";
 import { slackChannel } from "./channels/slack";
+import { emailChannel } from "./channels/email";
 
 export const executeWorkflow = inngest.createFunction(
-  { id: "execute-workflow", 
+  {
+    id: "execute-workflow",
     retries: 0, //TODO: Remove in production
     onFailure: async ({ event, step }) => {
       return prisma.execution.update({
@@ -28,8 +30,8 @@ export const executeWorkflow = inngest.createFunction(
       });
     },
   },
-  { 
-    event: "workflows/execute.workflow" ,
+  {
+    event: "workflows/execute.workflow",
     channels: [
       httpRequestChannel(),
       manualTriggerChannel(),
@@ -40,6 +42,7 @@ export const executeWorkflow = inngest.createFunction(
       anthropicChannel(),
       discordChannel(),
       slackChannel(),
+      emailChannel(),
     ],
   },
   async ({ event, step, publish }) => {
@@ -68,14 +71,14 @@ export const executeWorkflow = inngest.createFunction(
         },
       });
 
-      return topologicalSort (workflow.nodes, workflow.connections);
+      return topologicalSort(workflow.nodes, workflow.connections);
     });
 
     const userId = await step.run("find-user-id", async () => {
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: { id: workflowId },
         select: {
-          userId: true,          
+          userId: true,
         },
       });
 
@@ -106,12 +109,12 @@ export const executeWorkflow = inngest.createFunction(
           completedAt: new Date(),
           output: context,
         },
-      })
+      });
     });
 
-    return { 
+    return {
       workflowId,
       result: context,
-     };
+    };
   },
 );
