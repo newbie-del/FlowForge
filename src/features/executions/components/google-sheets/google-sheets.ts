@@ -29,6 +29,8 @@ export type GoogleSheetOption = {
   title: string;
 };
 
+type GoogleApiAuth = NonNullable<Parameters<typeof google.sheets>[0]>["auth"];
+
 export function parseGoogleSheetsCredentialValue(
   encryptedValue: string,
 ): GoogleSheetsCredentialValue {
@@ -74,7 +76,7 @@ export function parseGoogleSheetsCredentialValue(
 
 async function createGoogleAuthFromCredential(
   credential: GoogleSheetsCredentialValue,
-) {
+): Promise<GoogleApiAuth> {
   if (credential.authType === "service_account") {
     if (!credential.serviceAccountJson?.trim()) {
       throw new Error("Service account JSON is required.");
@@ -92,7 +94,7 @@ async function createGoogleAuthFromCredential(
       scopes: [...GOOGLE_SHEETS_SCOPES],
     });
 
-    return auth.getClient();
+    return auth;
   }
 
   if (

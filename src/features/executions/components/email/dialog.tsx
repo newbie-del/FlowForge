@@ -74,7 +74,8 @@ const formSchema = z
     }
   });
 
-export type EmailFormValues = z.infer<typeof formSchema>;
+export type EmailFormValues = z.output<typeof formSchema>;
+type EmailFormInputValues = z.input<typeof formSchema>;
 
 interface Props {
   open: boolean;
@@ -94,7 +95,7 @@ export const EmailDialog = ({
   const { data: credentials, isLoading: isLoadingCredentials } =
     useCredentialsByType(CredentialType.SMTP);
 
-  const form = useForm<EmailFormValues>({
+  const form = useForm<EmailFormInputValues, unknown, EmailFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       fromEmail: defaultValues.fromEmail || "",
@@ -137,7 +138,12 @@ export const EmailDialog = ({
   const htmlMode = form.watch("htmlMode");
 
   const runConnectionTest = async () => {
-    const values = form.getValues();
+    const parsed = formSchema.safeParse(form.getValues());
+    if (!parsed.success) {
+      toast.error("Please fix invalid fields before testing connection.");
+      return;
+    }
+    const values = parsed.data;
     if (!values.credentialId) {
       toast.error("Choose a credential first.");
       return;
@@ -159,7 +165,12 @@ export const EmailDialog = ({
   };
 
   const runSendTest = async () => {
-    const values = form.getValues();
+    const parsed = formSchema.safeParse(form.getValues());
+    if (!parsed.success) {
+      toast.error("Please fix invalid fields before sending test email.");
+      return;
+    }
+    const values = parsed.data;
     if (!values.credentialId) {
       toast.error("Choose a credential first.");
       return;
@@ -192,19 +203,20 @@ export const EmailDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-h-[90vh] flex flex-col overflow-hidden min-h-0">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Email Configuration</DialogTitle>
           <DialogDescription>
             Configure SMTP provider, credential, and email content.
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(handleSubmit)}
-            className="space-y-6 mt-4"
-          >
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleSubmit)}
+              className="space-y-6 mt-4 px-6 pb-6"
+            >
             <FormField
               control={form.control}
               name="provider"
@@ -287,7 +299,12 @@ export const EmailDialog = ({
                         <Input
                           type="number"
                           placeholder="587"
-                          value={field.value ?? ""}
+                          value={
+                            typeof field.value === "number" ||
+                            typeof field.value === "string"
+                              ? field.value
+                              : ""
+                          }
                           onChange={(event) =>
                             field.onChange(
                               event.target.value
@@ -466,7 +483,7 @@ export const EmailDialog = ({
               )}
             />
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="gap-2 mt-4 pb-0 shrink-0">
               <Button
                 type="button"
                 variant="outline"
@@ -487,6 +504,7 @@ export const EmailDialog = ({
             </DialogFooter>
           </form>
         </Form>
+        </div>
       </DialogContent>
     </Dialog>
   );
