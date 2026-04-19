@@ -90,18 +90,19 @@ export const HttpRequestDialog = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader>
+            <DialogContent className="max-h-[90vh] flex flex-col overflow-hidden min-h-0">
+                <DialogHeader className="shrink-0">
                     <DialogTitle>HTTP Request</DialogTitle>
                     <DialogDescription>
                         Configure settings for the HTTP request node.
                     </DialogDescription>
                 </DialogHeader>
-                <Form {...form}>
-                    <form
-                        onSubmit={form.handleSubmit(handleSubmit)}
-                        className="space-y-8 mt-4"
-                    >
+                <div className="flex-1 overflow-y-auto min-h-0">
+                    <Form {...form}>
+                        <form
+                            onSubmit={form.handleSubmit(handleSubmit)}
+                            className="space-y-6 mt-4 px-6 pb-6"
+                        >
 
                     <FormField 
                             control={form.control}
@@ -201,12 +202,13 @@ export const HttpRequestDialog = ({
                             )}
                             />
                         )}
-                        <DialogFooter className="mt-4">
-                             <Button type="submit"> Save</Button>
+                        <DialogFooter className="mt-4 pb-0 shrink-0">
+                             <Button type="submit">Save</Button>
                         </DialogFooter>
 
                     </form>
                 </Form>
+                </div>
             </DialogContent>
         </Dialog>
     );

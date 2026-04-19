@@ -93,7 +93,8 @@ const formSchema = z
     }
   });
 
-export type GoogleSheetsFormValues = z.infer<typeof formSchema>;
+export type GoogleSheetsFormValues = z.output<typeof formSchema>;
+type GoogleSheetsFormInputValues = z.input<typeof formSchema>;
 
 type SpreadsheetOption = {
   id: string;
@@ -129,7 +130,11 @@ export const GoogleSheetsDialog = ({
   const { data: credentials, isLoading: isLoadingCredentials } =
     useCredentialsByType(CredentialType.GOOGLE_SHEETS);
 
-  const form = useForm<GoogleSheetsFormValues>({
+  const form = useForm<
+    GoogleSheetsFormInputValues,
+    unknown,
+    GoogleSheetsFormValues
+  >({
     resolver: zodResolver(formSchema),
     defaultValues: {
       credentialId: defaultValues.credentialId || "",
@@ -207,7 +212,12 @@ export const GoogleSheetsDialog = ({
   }, [credentialId, spreadsheetId, open]);
 
   const runTestConnection = async () => {
-    const values = form.getValues();
+    const parsed = formSchema.safeParse(form.getValues());
+    if (!parsed.success) {
+      toast.error("Please fix invalid fields before testing connection.");
+      return;
+    }
+    const values = parsed.data;
     const result = await testGoogleSheetsNodeConnection({
       credentialId: values.credentialId,
       spreadsheetId: values.spreadsheetId || undefined,
@@ -222,7 +232,12 @@ export const GoogleSheetsDialog = ({
   };
 
   const runPreviewData = async () => {
-    const values = form.getValues();
+    const parsed = formSchema.safeParse(form.getValues());
+    if (!parsed.success) {
+      toast.error("Please fix invalid fields before previewing data.");
+      return;
+    }
+    const values = parsed.data;
     const result = await previewGoogleSheetsData({
       credentialId: values.credentialId,
       spreadsheetId: values.spreadsheetId,
@@ -253,18 +268,19 @@ export const GoogleSheetsDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-h-[90vh] flex flex-col overflow-hidden min-h-0">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Google Sheets Configuration</DialogTitle>
           <DialogDescription>
             Configure Google Sheets operations and mapping for this node.
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(handleSubmit)}
-            className="space-y-6 mt-4"
-          >
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleSubmit)}
+              className="space-y-6 mt-4 px-6 pb-6"
+            >
             <FormField
               control={form.control}
               name="credentialId"
@@ -489,7 +505,12 @@ export const GoogleSheetsDialog = ({
                     <Input
                       type="number"
                       placeholder="10"
-                      value={field.value ?? ""}
+                      value={
+                        typeof field.value === "number" ||
+                        typeof field.value === "string"
+                          ? field.value
+                          : ""
+                      }
                       onChange={(event) =>
                         field.onChange(
                           event.target.value
@@ -537,7 +558,7 @@ export const GoogleSheetsDialog = ({
               </div>
             ) : null}
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="mt-4 pb-0 shrink-0 gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -556,8 +577,9 @@ export const GoogleSheetsDialog = ({
               </Button>
               <Button type="submit">Save</Button>
             </DialogFooter>
-          </form>
-        </Form>
+            </form>
+          </Form>
+        </div>
       </DialogContent>
     </Dialog>
   );

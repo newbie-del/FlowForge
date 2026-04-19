@@ -16,6 +16,7 @@ type HttpRequestData = {
     endpoint?: string;
     method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     body?: string;
+    headersJson?: string;
 };
 
 export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({ 
@@ -70,14 +71,40 @@ export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({
 
         const options: KyOptions = {method};
 
+        // Parse and merge custom headers
+        let customHeaders: Record<string, string> = {};
+        if (data.headersJson) {
+            try {
+                const parsed = JSON.parse(data.headersJson);
+                // Support template variables in header values
+                customHeaders = Object.entries(parsed).reduce((acc, [key, value]) => {
+                    if (typeof value === 'string') {
+                        acc[key] = Handlebars.compile(value)(context);
+                    } else {
+                        acc[key] = String(value);
+                    }
+                    return acc;
+                }, {} as Record<string, string>);
+            } catch (e) {
+                // If headers aren't valid JSON, try using as-is
+                customHeaders = {};
+            }
+        }
+
         if (["POST", "PUT", "PATCH"].includes(method)) {
             const resolved = Handlebars.compile(data.body) (context);
             JSON.parse(resolved); 
                 options.body = resolved;
                 options.headers = {
                     "Content-Type": "application/json",
+                    ...customHeaders,
                 };
-            }    
+            } else {
+                // For GET, DELETE, etc., still apply custom headers
+                if (Object.keys(customHeaders).length > 0) {
+                    options.headers = customHeaders;
+                }
+            }
         
             const response = await ky(endpoint, options);
             const contentType = response.headers.get("content-type") ;

@@ -141,7 +141,8 @@ const formSchema = z
     }
   });
 
-type FormValues = z.infer<typeof formSchema>;
+type FormValues = z.input<typeof formSchema>;
+type SubmitValues = z.output<typeof formSchema>;
 
 const credentialTypeOptions = [
   {
@@ -250,7 +251,7 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
       ? parseGoogleSheetsCredentialValue(initialData.value)
       : {};
 
-  const form = useForm<FormValues>({
+  const form = useForm<FormValues, unknown, SubmitValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: initialData?.name || "",
@@ -274,7 +275,7 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
     },
   });
 
-  const onSubmit = async (values: FormValues) => {
+  const onSubmit = async (values: SubmitValues) => {
     const payload = {
       name: values.name,
       type: values.type,
@@ -390,11 +391,11 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="value"
-                render={({ field }) =>
-                  !isSmtpType && !isGoogleSheetsType ? (
+              {!isSmtpType && !isGoogleSheetsType ? (
+                <FormField
+                  control={form.control}
+                  name="value"
+                  render={({ field }) => (
                     <FormItem>
                       <FormLabel>API Key</FormLabel>
                       <FormControl>
@@ -406,9 +407,9 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                       </FormControl>
                       <FormMessage />
                     </FormItem>
-                  ) : null
-                }
-              />
+                  )}
+                />
+              ) : null}
               {isSmtpType && (
                 <>
                   <div className="rounded-md border bg-muted/30 p-4 text-sm">
@@ -510,7 +511,12 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                           <Input
                             type="number"
                             placeholder="587"
-                            value={field.value ?? ""}
+                            value={
+                              typeof field.value === "number" ||
+                              typeof field.value === "string"
+                                ? field.value
+                                : ""
+                            }
                             onChange={(event) =>
                               field.onChange(
                                 event.target.value

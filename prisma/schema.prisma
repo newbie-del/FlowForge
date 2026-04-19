@@ -81,15 +81,16 @@ model Credential {
 }
 
 model Workflow {
-  id          String       @id @default(cuid())
-  name        String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  userId      String
-  connections Connection[]
-  Execution   Execution[]
-  nodes       Node[]
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                    String       @id @default(cuid())
+  name                  String
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  userId                String
+  aiBuilderMetadata     Json?
+  connections           Connection[]
+  Execution             Execution[]
+  nodes                 Node[]
+  user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Node {
