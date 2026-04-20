@@ -216,6 +216,48 @@ export class WorkflowValidator {
       case NodeType.ANTHROPIC:
         this.validateAiNode(node);
         break;
+      case NodeType.SCHEDULE_TRIGGER:
+        this.validateScheduleNode(node);
+        break;
+    }
+  }
+
+  private validateScheduleNode(node: AiWorkflowNode): void {
+    const mode = String(node.data.mode ?? "daily");
+    const validModes = new Set([
+      "every_minutes",
+      "hourly",
+      "daily",
+      "weekly",
+      "monthly",
+      "weekdays_only",
+      "custom_cron",
+    ]);
+    if (!validModes.has(mode)) {
+      this.addError("error", node.id, "mode", `Invalid schedule mode: ${mode}`);
+      return;
+    }
+
+    const timezone = String(node.data.timezone ?? "").trim();
+    if (!timezone) {
+      this.addError(
+        "error",
+        node.id,
+        "timezone",
+        "Schedule trigger timezone is required",
+      );
+    }
+
+    if (mode === "custom_cron") {
+      const expression = String(node.data.cronExpression ?? "").trim();
+      if (!expression) {
+        this.addError(
+          "error",
+          node.id,
+          "cronExpression",
+          "Custom cron mode requires cronExpression",
+        );
+      }
     }
   }
 
@@ -567,6 +609,7 @@ export class WorkflowValidator {
   private isTriggerType(type: NodeType): boolean {
     return (
       type === NodeType.MANUAL_TRIGGER ||
+      type === NodeType.SCHEDULE_TRIGGER ||
       type === NodeType.GOOGLE_FORM_TRIGGER ||
       type === NodeType.STRIPE_TRIGGER
     );

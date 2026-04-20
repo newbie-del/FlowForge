@@ -2,7 +2,12 @@
 
 import { createId } from "@paralleldrive/cuid2";
 import { useReactFlow } from "@xyflow/react";
-import { GlobeIcon, MailIcon, MousePointerIcon } from "lucide-react";
+import {
+  Clock3Icon,
+  GlobeIcon,
+  MailIcon,
+  MousePointerIcon,
+} from "lucide-react";
 import Image from "next/image";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -15,11 +20,15 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { NodeType } from "@/generated/prisma";
-import { isManualTriggerType, normalizeNodeType } from "@/lib/node-type";
+import {
+  isManualTriggerType,
+  normalizeNodeType,
+  SCHEDULE_TRIGGER_TYPE,
+} from "@/lib/node-type";
 import { Separator } from "./ui/separator";
 
 export type NodeTypeOption = {
-  type: NodeType;
+  type: string;
   label: string;
   description: string;
   icon: React.ComponentType<{ className?: string }> | string;
@@ -32,6 +41,12 @@ const triggerNodes: NodeTypeOption[] = [
     description:
       "Runs the flow on clicking a button. Good for getting stareted quickly.",
     icon: MousePointerIcon,
+  },
+  {
+    type: SCHEDULE_TRIGGER_TYPE,
+    label: "Schedule Trigger",
+    description: "Runs the flow on a recurring schedule.",
+    icon: Clock3Icon,
   },
   {
     type: NodeType.GOOGLE_FORM_TRIGGER,

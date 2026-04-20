@@ -86,9 +86,9 @@ const COMMON_ISSUES = `
 
 ### Issue: Scheduling Not Working
 **Symptom**: Workflow doesn't run on schedule
-**Cause**: Manual trigger doesn't support scheduling yet
-**Solution**: Use external cron job or set up Inngest scheduling
-**Workaround**: External job service can call workflow API
+**Cause**: Schedule Trigger mode/cron/timezone is invalid or schedule is disabled
+**Solution**: Use Schedule Trigger node, set a valid timezone, and preview next runs before enabling
+**Workaround**: Use Test Trigger to verify execution path immediately
 
 ### Issue: Node Connection Error
 **Symptom**: Next node says input not found
@@ -109,8 +109,9 @@ const COMMON_ISSUES = `
 
 ### Trigger Outputs
 - MANUAL_TRIGGER: No output (empty context)
-- GOOGLE_FORM_TRIGGER: {{formResponse.responses}}
-- STRIPE_TRIGGER: {{stripeEvent.data}}
+- SCHEDULE_TRIGGER: {{schedule.runAt}}, {{schedule.timezone}}, {{schedule.scheduleMode}}
+- GOOGLE_FORM_TRIGGER: {{googleForm.responses}}
+- STRIPE_TRIGGER: {{stripe.raw}}
 
 ### Node Configuration Tips
 - Always use headersJson as JSON string: {"key": "value"}

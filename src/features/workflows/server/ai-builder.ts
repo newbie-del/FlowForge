@@ -30,9 +30,29 @@ type UserCredentialSummary = {
 
 const triggerTypes = new Set<NodeType>([
   NodeType.MANUAL_TRIGGER,
+  NodeType.SCHEDULE_TRIGGER,
   NodeType.GOOGLE_FORM_TRIGGER,
   NodeType.STRIPE_TRIGGER,
 ]);
+
+const scheduleKeywords = [
+  "every day",
+  "daily",
+  "every hour",
+  "hourly",
+  "weekly",
+  "monthly",
+  "each morning",
+  "every monday",
+  "scheduled",
+  "recurring",
+  "cron",
+];
+
+function hasScheduleIntent(prompt: string) {
+  const lower = prompt.toLowerCase();
+  return scheduleKeywords.some((keyword) => lower.includes(keyword));
+}
 
 const telegramKeywords = [
   "telegram",
@@ -99,8 +119,9 @@ AVAILABLE FLOWFORGE NODES:
 
 TRIGGERS (start workflows):
 - MANUAL_TRIGGER: Manual workflow start. Outputs: empty context
-- GOOGLE_FORM_TRIGGER: Triggered when Google Form submitted. Outputs: formResponse = { responses: {...}, timestamp }
-- STRIPE_TRIGGER: Triggered on Stripe event. Outputs: stripeEvent = { type, data, id }
+- SCHEDULE_TRIGGER: Triggered on configured schedule. Outputs: schedule = { triggerType, runAt, timezone, scheduleMode }
+- GOOGLE_FORM_TRIGGER: Triggered when Google Form submitted. Outputs: googleForm = { responses: {...}, timestamp }
+- STRIPE_TRIGGER: Triggered on Stripe event. Outputs: stripe = { eventType, raw, eventId }
 
 ACTIONS (do things):
 - HTTP_REQUEST: Make API/webhook calls. Output variable name is customizable.
@@ -150,7 +171,7 @@ DATA FLOW RULES:
 EXAMPLE WORKFLOW:
 Prompt: "Search for React jobs daily and email top 5"
 Flow:
-1. Schedule Trigger (MANUAL_TRIGGER) → no output needed
+1. Schedule Trigger (SCHEDULE_TRIGGER) → outputs schedule metadata
 2. HTTP_REQUEST with variableName="jobsApi" → fetches jobs with auth
    endpoint: "https://api.example.com/jobs?query=React"
    headersJson: "{"Authorization": "Bearer YOUR_API_KEY", "Accept": "application/json"}"
@@ -172,6 +193,8 @@ function getNodeTitle(type: NodeType) {
   switch (type) {
     case NodeType.MANUAL_TRIGGER:
       return "Manual Trigger";
+    case NodeType.SCHEDULE_TRIGGER:
+      return "Schedule Trigger";
     case NodeType.GOOGLE_FORM_TRIGGER:
       return "Google Form Trigger";
     case NodeType.STRIPE_TRIGGER:
@@ -207,6 +230,23 @@ function ensureNodeDefaults(node: AiWorkflowPlan["nodes"][number]) {
   switch (node.type) {
     case NodeType.MANUAL_TRIGGER:
       return { ...node, data: {} };
+    case NodeType.SCHEDULE_TRIGGER:
+      return {
+        ...node,
+        data: {
+          mode: String(data.mode ?? "daily"),
+          interval: typeof data.interval === "number" ? data.interval : 1,
+          time: String(data.time ?? "09:00"),
+          timezone: String(data.timezone ?? "UTC"),
+          daysOfWeek: Array.isArray(data.daysOfWeek) ? data.daysOfWeek : [1],
+          dayOfMonth: typeof data.dayOfMonth === "number" ? data.dayOfMonth : 1,
+          cronExpression:
+            typeof data.cronExpression === "string" ? data.cronExpression : "",
+          enabled: data.enabled !== false,
+          runImmediately: Boolean(data.runImmediately ?? false),
+          runMissedOnRestart: Boolean(data.runMissedOnRestart ?? false),
+        },
+      };
     case NodeType.HTTP_REQUEST:
       return {
         ...node,
@@ -513,7 +553,7 @@ Return ONLY valid JSON matching the schema. No markdown, no explanation.
 ${enhancedNodeCatalog}
 
 CRITICAL REQUIREMENTS:
-1) Use ONLY NodeType values: MANUAL_TRIGGER, GOOGLE_FORM_TRIGGER, STRIPE_TRIGGER, HTTP_REQUEST, GOOGLE_SHEETS, EMAIL, DISCORD, SLACK, TELEGRAM, OPENAI, GEMINI, ANTHROPIC
+1) Use ONLY NodeType values: MANUAL_TRIGGER, SCHEDULE_TRIGGER, GOOGLE_FORM_TRIGGER, STRIPE_TRIGGER, HTTP_REQUEST, GOOGLE_SHEETS, EMAIL, DISCORD, SLACK, TELEGRAM, OPENAI, GEMINI, ANTHROPIC
 2) EVERY node must have ALL required fields set
 3) Variable names in templates MUST match exact variable names from previous nodes
 4) Check: if HTTP_REQUEST outputs "jobsList", then use {{jobsList.httpResponse.data}} NOT {{httpData}}
@@ -572,30 +612,51 @@ Generate a workflow that will actually execute successfully. Think about data fl
 `;
 }
 
-function ensureSingleTrigger(plan: AiWorkflowPlan) {
+function ensureSingleTrigger(plan: AiWorkflowPlan, prompt: string) {
   const triggerNodes = plan.nodes.filter((node) => triggerTypes.has(node.type));
   if (triggerNodes.length > 0) {
     return plan;
   }
 
-  const manualTrigger = {
-    id: "trigger_manual",
-    type: NodeType.MANUAL_TRIGGER,
-    title: getNodeTitle(NodeType.MANUAL_TRIGGER),
-    description: "Manual start trigger added automatically.",
-    data: {},
-    position: { x: 100, y: 200 },
-  } as const;
+  const shouldUseSchedule = hasScheduleIntent(prompt);
+  const triggerNode = shouldUseSchedule
+    ? {
+        id: "trigger_schedule",
+        type: NodeType.SCHEDULE_TRIGGER,
+        title: getNodeTitle(NodeType.SCHEDULE_TRIGGER),
+        description: "Schedule trigger added automatically from prompt intent.",
+        data: {
+          mode: "daily",
+          interval: 1,
+          time: "09:00",
+          timezone: "UTC",
+          daysOfWeek: [1],
+          dayOfMonth: 1,
+          cronExpression: "",
+          enabled: true,
+          runImmediately: false,
+          runMissedOnRestart: false,
+        },
+        position: { x: 100, y: 200 },
+      }
+    : {
+        id: "trigger_manual",
+        type: NodeType.MANUAL_TRIGGER,
+        title: getNodeTitle(NodeType.MANUAL_TRIGGER),
+        description: "Manual start trigger added automatically.",
+        data: {},
+        position: { x: 100, y: 200 },
+      };
 
   const firstNode = plan.nodes[0];
 
   return {
     ...plan,
-    nodes: [manualTrigger, ...plan.nodes],
+    nodes: [triggerNode, ...plan.nodes],
     connections: firstNode
       ? [
           {
-            from: manualTrigger.id,
+            from: triggerNode.id,
             to: firstNode.id,
             fromOutput: "source-1",
             toInput: "target-1",
@@ -605,7 +666,9 @@ function ensureSingleTrigger(plan: AiWorkflowPlan) {
       : plan.connections,
     plannerNotes: [
       ...plan.plannerNotes,
-      "Added Manual Trigger because no supported trigger was selected.",
+      shouldUseSchedule
+        ? "Added Schedule Trigger because prompt indicates recurring automation."
+        : "Added Manual Trigger because no supported trigger was selected.",
     ],
   };
 }
@@ -628,6 +691,74 @@ function ensureConnections(plan: AiWorkflowPlan) {
     plannerNotes: [
       ...plan.plannerNotes,
       "Added sequential connections to keep the workflow runnable.",
+    ],
+  };
+}
+
+function enforceScheduleTriggerIntent(plan: AiWorkflowPlan, prompt: string) {
+  if (!hasScheduleIntent(prompt)) {
+    return plan;
+  }
+
+  const scheduleNode = plan.nodes.find(
+    (node) => node.type === NodeType.SCHEDULE_TRIGGER,
+  );
+
+  if (scheduleNode) {
+    return plan;
+  }
+
+  const firstTrigger = plan.nodes.find((node) => triggerTypes.has(node.type));
+  const newScheduleNode: AiWorkflowPlan["nodes"][number] = {
+    id: "trigger_schedule",
+    type: NodeType.SCHEDULE_TRIGGER,
+    title: "Schedule Trigger",
+    description: "Runs workflow on configured schedule.",
+    data: {
+      mode: "daily",
+      interval: 1,
+      time: "09:00",
+      timezone: "UTC",
+      daysOfWeek: [1],
+      dayOfMonth: 1,
+      cronExpression: "",
+      enabled: true,
+      runImmediately: false,
+      runMissedOnRestart: false,
+    },
+    position: { x: 100, y: 120 },
+  };
+
+  if (!firstTrigger) {
+    return {
+      ...plan,
+      nodes: [newScheduleNode, ...plan.nodes],
+      plannerNotes: [
+        ...plan.plannerNotes,
+        "Inserted Schedule Trigger for recurring intent.",
+      ],
+    };
+  }
+
+  const nodes = plan.nodes.map((node) =>
+    node.id === firstTrigger.id ? newScheduleNode : node,
+  );
+  const connections = plan.connections.map((connection) => ({
+    ...connection,
+    from:
+      connection.from === firstTrigger.id
+        ? newScheduleNode.id
+        : connection.from,
+    to: connection.to === firstTrigger.id ? newScheduleNode.id : connection.to,
+  }));
+
+  return {
+    ...plan,
+    nodes,
+    connections,
+    plannerNotes: [
+      ...plan.plannerNotes,
+      "Replaced trigger with Schedule Trigger for recurring intent.",
     ],
   };
 }
@@ -1286,14 +1417,30 @@ function buildFallbackPlan(params: {
     : normalizedPrompt.includes("stripe") ||
         normalizedPrompt.includes("payment")
       ? NodeType.STRIPE_TRIGGER
-      : NodeType.MANUAL_TRIGGER;
+      : hasScheduleIntent(normalizedPrompt)
+        ? NodeType.SCHEDULE_TRIGGER
+        : NodeType.MANUAL_TRIGGER;
 
   pushNode({
     id: makeId("trigger"),
     type: triggerType,
     title: getNodeTitle(triggerType),
     description: "Workflow trigger",
-    data: {},
+    data:
+      triggerType === NodeType.SCHEDULE_TRIGGER
+        ? {
+            mode: "daily",
+            interval: 1,
+            time: "09:00",
+            timezone: "UTC",
+            daysOfWeek: [1],
+            dayOfMonth: 1,
+            cronExpression: "",
+            enabled: true,
+            runImmediately: false,
+            runMissedOnRestart: false,
+          }
+        : {},
   });
 
   // Add HTTP if it's a data-fetching workflow
@@ -1585,7 +1732,11 @@ export async function generateAiWorkflowPlan(params: {
     withDefaults,
     params.prompt,
   );
-  const withTrigger = ensureSingleTrigger(withTelegramPriority);
+  const withScheduleTrigger = enforceScheduleTriggerIntent(
+    withTelegramPriority,
+    params.prompt,
+  );
+  const withTrigger = ensureSingleTrigger(withScheduleTrigger, params.prompt);
   const withUniqueIds = ensureUniqueNodeIds(withTrigger);
   const withConnections = ensureConnections(withUniqueIds);
   const withPositions = applyPositions(withConnections);

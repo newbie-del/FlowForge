@@ -2,7 +2,11 @@ import type { Edge, Node } from "@xyflow/react";
 import { generateSlug } from "random-word-slugs";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
-import { NodeType } from "@/generated/prisma";
+import {
+  getNextRunAt,
+  normalizeScheduleData,
+} from "@/features/triggers/components/schedule-trigger/schedule-service";
+import { NodeType, type Prisma } from "@/generated/prisma";
 import { inngest } from "@/inngest/client";
 import { sendWorkflowExecution } from "@/inngest/utils";
 import prisma from "@/lib/db";
@@ -15,6 +19,65 @@ import type { AiWorkflowPlan } from "../lib/ai-workflow-schema";
 import { aiWorkflowBuilderInputSchema } from "../lib/ai-workflow-schema";
 import { generateAiWorkflowPlan } from "./ai-builder";
 import { generateSupportChatResponse } from "./support-chat";
+
+function normalizePersistedNodeData(
+  nodeType: NodeType,
+  data: Record<string, unknown>,
+) {
+  if (nodeType !== NodeType.SCHEDULE_TRIGGER) {
+    return data;
+  }
+
+  const validation = normalizeScheduleData(data);
+  const previousTotalRuns =
+    typeof data.totalRuns === "number" ? data.totalRuns : 0;
+  const previousLastRunAt =
+    typeof data.lastRunAt === "string" ? data.lastRunAt : null;
+  const previousLastResult =
+    data.lastResult === "failed" || data.lastResult === "success"
+      ? data.lastResult
+      : null;
+  const previousLastRunDurationMs =
+    typeof data.lastRunDurationMs === "number" ? data.lastRunDurationMs : null;
+  const previousRecentRuns = Array.isArray(data.recentRuns)
+    ? data.recentRuns.slice(0, 8)
+    : [];
+
+  if (!validation.valid) {
+    return {
+      ...validation.normalized,
+      totalRuns: previousTotalRuns,
+      lastRunAt: previousLastRunAt,
+      nextRunAt: null,
+      active: false,
+      resolvedCronExpression: "",
+      lastError: validation.error,
+      lastResult: "failed",
+      lastRunDurationMs: previousLastRunDurationMs,
+      recentRuns: previousRecentRuns,
+    };
+  }
+
+  const nextRunAt = validation.normalized.enabled
+    ? (getNextRunAt({
+        cronExpression: validation.cronExpression,
+        timezone: validation.normalized.timezone,
+      })?.toISOString() ?? null)
+    : null;
+
+  return {
+    ...validation.normalized,
+    totalRuns: previousTotalRuns,
+    lastRunAt: previousLastRunAt,
+    nextRunAt,
+    active: validation.normalized.enabled,
+    resolvedCronExpression: validation.cronExpression,
+    lastError: null,
+    lastResult: previousLastResult,
+    lastRunDurationMs: previousLastRunDurationMs,
+    recentRuns: previousRecentRuns,
+  };
+}
 
 export const workflowsRouter = createTRPCRouter({
   execute: protectedProcedure
@@ -138,6 +201,59 @@ export const workflowsRouter = createTRPCRouter({
           return {
             ...node,
             id: nextId,
+            data: normalizePersistedNodeData(
+              (node.type as NodeType) ?? NodeType.INITIAL,
+              (node.data || {}) as Record<string, unknown>,
+            ),
+          };
+        });
+
+        let primaryScheduleNodeId: string | null = null;
+        const scheduleKeyToNodeId = new Map<string, string>();
+        const normalizedScheduleNodes = normalizedNodes.map((node) => {
+          if (node.type !== NodeType.SCHEDULE_TRIGGER) {
+            return node;
+          }
+
+          const data = (node.data || {}) as Record<string, unknown>;
+          const enabled = data.enabled === true;
+          const cron = String(data.resolvedCronExpression || "");
+          const timezone = String(data.timezone || "UTC");
+          if (!enabled || !cron) {
+            return node;
+          }
+
+          if (primaryScheduleNodeId && primaryScheduleNodeId !== node.id) {
+            return {
+              ...node,
+              data: {
+                ...data,
+                active: false,
+                enabled: false,
+                nextRunAt: null,
+                lastError: `Duplicate schedule trigger detected. Keep one active schedule trigger per workflow (primary: ${primaryScheduleNodeId}).`,
+              },
+            };
+          }
+
+          primaryScheduleNodeId = node.id;
+
+          const key = `${cron}|${timezone}`;
+          const existingNodeId = scheduleKeyToNodeId.get(key);
+          if (!existingNodeId) {
+            scheduleKeyToNodeId.set(key, node.id);
+            return node;
+          }
+
+          return {
+            ...node,
+            data: {
+              ...data,
+              active: false,
+              enabled: false,
+              nextRunAt: null,
+              lastError: `Duplicate schedule detected with node ${existingNodeId}.`,
+            },
           };
         });
 
@@ -172,15 +288,15 @@ export const workflowsRouter = createTRPCRouter({
         });
 
         //Create nodes
-        if (normalizedNodes.length > 0) {
+        if (normalizedScheduleNodes.length > 0) {
           await tx.node.createMany({
-            data: normalizedNodes.map((node) => ({
+            data: normalizedScheduleNodes.map((node) => ({
               id: node.id,
               workflowId: id,
               name: node.type || "unknown",
               type: node.type as NodeType,
               position: node.position,
-              data: node.data || {},
+              data: (node.data || {}) as Prisma.InputJsonValue,
             })),
           });
         }
