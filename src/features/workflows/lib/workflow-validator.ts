@@ -3,8 +3,8 @@ import {
   buildVariableRegistry,
   nodeOutputSchemas,
   nodeRequirements,
-  validateTemplateVariable,
   type VariableRegistry,
+  validateTemplateVariable,
 } from "./node-schemas";
 
 export interface AiWorkflowNode {
@@ -91,7 +91,7 @@ export class WorkflowValidator {
         "error",
         undefined,
         undefined,
-        "Workflow must have at least one trigger node"
+        "Workflow must have at least one trigger node",
       );
     }
 
@@ -102,7 +102,7 @@ export class WorkflowValidator {
         "warning",
         undefined,
         undefined,
-        "Workflow has only trigger, no actions"
+        "Workflow has only trigger, no actions",
       );
     }
 
@@ -114,7 +114,7 @@ export class WorkflowValidator {
           "error",
           node.id,
           undefined,
-          `Duplicate node ID: ${node.id}`
+          `Duplicate node ID: ${node.id}`,
         );
       }
       ids.add(node.id);
@@ -127,7 +127,7 @@ export class WorkflowValidator {
           "error",
           undefined,
           undefined,
-          `Connection references non-existent source node: ${conn.from}`
+          `Connection references non-existent source node: ${conn.from}`,
         );
       }
       if (!this.nodeMap.has(conn.to)) {
@@ -135,7 +135,7 @@ export class WorkflowValidator {
           "error",
           undefined,
           undefined,
-          `Connection references non-existent target node: ${conn.to}`
+          `Connection references non-existent target node: ${conn.to}`,
         );
       }
     }
@@ -152,7 +152,7 @@ export class WorkflowValidator {
             "warning",
             node.id,
             undefined,
-            `Node "${node.title}" is disconnected from workflow`
+            `Node "${node.title}" is disconnected from workflow`,
           );
         }
       }
@@ -184,7 +184,7 @@ export class WorkflowValidator {
           "error",
           node.id,
           req.field,
-          `Required field "${req.field}" is missing or empty`
+          `Required field "${req.field}" is missing or empty`,
         );
       }
     }
@@ -205,6 +205,9 @@ export class WorkflowValidator {
       case NodeType.SLACK:
         this.validateSlackNode(node);
         break;
+      case NodeType.TELEGRAM:
+        this.validateTelegramNode(node);
+        break;
       case NodeType.GOOGLE_SHEETS:
         this.validateGoogleSheetsNode(node);
         break;
@@ -219,12 +222,7 @@ export class WorkflowValidator {
   private validateHttpNode(node: AiWorkflowNode): void {
     const endpoint = String(node.data.endpoint ?? "");
     if (endpoint && !this.isValidUrl(endpoint) && !this.isTemplate(endpoint)) {
-      this.addError(
-        "error",
-        node.id,
-        "endpoint",
-        `Invalid URL: ${endpoint}`
-      );
+      this.addError("error", node.id, "endpoint", `Invalid URL: ${endpoint}`);
     }
 
     const method = String(node.data.method ?? "").toUpperCase();
@@ -233,7 +231,7 @@ export class WorkflowValidator {
         "error",
         node.id,
         "method",
-        `Invalid HTTP method: ${method}`
+        `Invalid HTTP method: ${method}`,
       );
     }
   }
@@ -245,7 +243,7 @@ export class WorkflowValidator {
         "error",
         node.id,
         "toEmail",
-        `Invalid email address: ${toEmail}`
+        `Invalid email address: ${toEmail}`,
       );
     }
 
@@ -255,7 +253,7 @@ export class WorkflowValidator {
         "warning",
         node.id,
         "fromEmail",
-        `From email may be invalid: ${fromEmail}`
+        `From email may be invalid: ${fromEmail}`,
       );
     }
   }
@@ -267,7 +265,7 @@ export class WorkflowValidator {
         "warning",
         node.id,
         "webhookUrl",
-        "Discord webhook URL may be invalid"
+        "Discord webhook URL may be invalid",
       );
     }
   }
@@ -279,7 +277,7 @@ export class WorkflowValidator {
         "warning",
         node.id,
         "webhookUrl",
-        "Slack webhook URL may be invalid"
+        "Slack webhook URL may be invalid",
       );
     }
   }
@@ -291,8 +289,103 @@ export class WorkflowValidator {
         "warning",
         node.id,
         "spreadsheetId",
-        "Spreadsheet ID looks invalid (too short)"
+        "Spreadsheet ID looks invalid (too short)",
       );
+    }
+  }
+
+  private validateTelegramNode(node: AiWorkflowNode): void {
+    const chatId = String(node.data.chatId ?? "");
+    if (
+      chatId &&
+      !this.isTemplate(chatId) &&
+      !/^-?\d+$/.test(chatId) &&
+      !chatId.startsWith("@")
+    ) {
+      this.addError(
+        "warning",
+        node.id,
+        "chatId",
+        "Telegram chatId should be numeric or start with @",
+      );
+    }
+
+    const operation = String(node.data.operation ?? "send_message");
+    if (
+      operation === "send_message" &&
+      !String(node.data.message ?? "").trim()
+    ) {
+      this.addError(
+        "error",
+        node.id,
+        "message",
+        "Telegram send_message operation requires message content",
+      );
+    }
+
+    if (operation === "send_photo") {
+      const source = String(node.data.photoSource ?? "url");
+      if (source === "url" && !String(node.data.photoUrl ?? "").trim()) {
+        this.addError(
+          "error",
+          node.id,
+          "photoUrl",
+          "Telegram send_photo with URL source requires photoUrl",
+        );
+      }
+      if (
+        source === "previous_node" &&
+        !String(node.data.photoBinaryTemplate ?? "").trim()
+      ) {
+        this.addError(
+          "error",
+          node.id,
+          "photoBinaryTemplate",
+          "Telegram send_photo with previous node source requires photoBinaryTemplate",
+        );
+      }
+      if (source === "upload" && !String(node.data.photoBase64 ?? "").trim()) {
+        this.addError(
+          "error",
+          node.id,
+          "photoBase64",
+          "Telegram send_photo with upload source requires uploaded file data",
+        );
+      }
+    }
+
+    if (operation === "send_document") {
+      const source = String(node.data.documentSource ?? "url");
+      if (source === "url" && !String(node.data.documentUrl ?? "").trim()) {
+        this.addError(
+          "error",
+          node.id,
+          "documentUrl",
+          "Telegram send_document with URL source requires documentUrl",
+        );
+      }
+      if (
+        source === "previous_node" &&
+        !String(node.data.documentBinaryTemplate ?? "").trim()
+      ) {
+        this.addError(
+          "error",
+          node.id,
+          "documentBinaryTemplate",
+          "Telegram send_document with previous node source requires documentBinaryTemplate",
+        );
+      }
+      if (
+        source === "upload" &&
+        !String(node.data.documentBase64 ?? "").trim()
+      ) {
+        this.addError(
+          "error",
+          node.id,
+          "documentBase64",
+          "Telegram send_document with upload source requires uploaded file data",
+        );
+      }
     }
   }
 
@@ -303,7 +396,7 @@ export class WorkflowValidator {
         "warning",
         node.id,
         "userPrompt",
-        "User prompt is very short, may not generate useful output"
+        "User prompt is very short, may not generate useful output",
       );
     }
   }
@@ -320,13 +413,16 @@ export class WorkflowValidator {
       if (typeof value !== "string") continue;
 
       if (this.isTemplate(value)) {
-        const validation = validateTemplateVariable(value, this.variableRegistry);
+        const validation = validateTemplateVariable(
+          value,
+          this.variableRegistry,
+        );
         if (!validation.valid) {
           this.addError(
             "error",
             node.id,
             req.field,
-            `Template references undefined variables: {{${validation.missingVariables.join(", ")}}}`
+            `Template references undefined variables: {{${validation.missingVariables.join(", ")}}}`,
           );
         }
       }
@@ -345,18 +441,21 @@ export class WorkflowValidator {
       if (!fromNode || !toNode) continue;
 
       // Triggers should only connect to action nodes
-      if (this.isTriggerType(fromNode.type) && this.isTriggerType(toNode.type)) {
+      if (
+        this.isTriggerType(fromNode.type) &&
+        this.isTriggerType(toNode.type)
+      ) {
         this.addError(
           "warning",
           conn.from,
           undefined,
-          `Trigger connects to another trigger: ${toNode.title}`
+          `Trigger connects to another trigger: ${toNode.title}`,
         );
       }
 
       // Multiple incoming connections should come from same type
       const incomingConnections = this.connections.filter(
-        (c) => c.to === toNode.id
+        (c) => c.to === toNode.id,
       );
       if (incomingConnections.length > 1) {
         // This is okay for merge operations, just note it
@@ -369,7 +468,7 @@ export class WorkflowValidator {
         "error",
         undefined,
         undefined,
-        "Workflow contains a cycle (infinite loop)"
+        "Workflow contains a cycle (infinite loop)",
       );
     }
   }
@@ -404,13 +503,16 @@ export class WorkflowValidator {
           if (!req.canUseTemplate) continue;
           const value = String(node.data[req.field] ?? "");
           if (this.isTemplate(value)) {
-            const validation = validateTemplateVariable(value, this.variableRegistry);
+            const validation = validateTemplateVariable(
+              value,
+              this.variableRegistry,
+            );
             if (!validation.valid) {
               this.addError(
                 "error",
                 node.id,
                 req.field,
-                `At execution time, variable {{${validation.missingVariables[0]}}} would not be available yet`
+                `At execution time, variable {{${validation.missingVariables[0]}}} would not be available yet`,
               );
             }
           }
@@ -425,7 +527,7 @@ export class WorkflowValidator {
         "warning",
         lastNode.id,
         undefined,
-        "Last node is a trigger - workflow may not do anything"
+        "Last node is a trigger - workflow may not do anything",
       );
     }
   }
@@ -444,14 +546,15 @@ export class WorkflowValidator {
         node.type === NodeType.GOOGLE_SHEETS ||
         node.type === NodeType.OPENAI ||
         node.type === NodeType.GEMINI ||
-        node.type === NodeType.ANTHROPIC;
+        node.type === NodeType.ANTHROPIC ||
+        node.type === NodeType.TELEGRAM;
 
       if (requiresCredential && !credentialId) {
         this.addError(
           "error",
           node.id,
           "credentialId",
-          `Node "${node.title}" requires a credential to be selected`
+          `Node "${node.title}" requires a credential to be selected`,
         );
       }
     }
@@ -555,7 +658,7 @@ export class WorkflowValidator {
     severity: "error" | "warning",
     nodeId: string | undefined,
     field: string | undefined,
-    message: string
+    message: string,
   ): void {
     this.errors.push({ severity, nodeId, field, message });
   }

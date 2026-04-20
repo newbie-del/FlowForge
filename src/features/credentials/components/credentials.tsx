@@ -123,6 +123,7 @@ const credentialLogos: Record<CredentialType, string> = {
   [CredentialType.GEMINI]: "/logos/gemini.svg",
   [CredentialType.SMTP]: "",
   [CredentialType.GOOGLE_SHEETS]: "/logos/googlesheets.svg",
+  [CredentialType.TELEGRAM_BOT]: "/logos/telegram.svg",
 };
 
 export const Credentialitem = ({ data }: { data: Credential }) => {

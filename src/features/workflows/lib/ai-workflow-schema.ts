@@ -10,6 +10,7 @@ const aiPlannerNodeTypes = [
   NodeType.EMAIL,
   NodeType.DISCORD,
   NodeType.SLACK,
+  NodeType.TELEGRAM,
   NodeType.OPENAI,
   NodeType.GEMINI,
   NodeType.ANTHROPIC,
@@ -85,9 +86,7 @@ export const aiWorkflowBuilderInputSchema = z.object({
   prompt: z.string().min(1).max(4000),
   mode: aiBuilderModeSchema.default("generate"),
   history: z.array(aiBuilderMessageSchema).max(20).default([]),
-  preferredProvider: z
-    .enum(["openai", "gemini", "anthropic"])
-    .optional(),
+  preferredProvider: z.enum(["openai", "gemini", "anthropic"]).optional(),
   currentNodes: z
     .array(
       z.object({

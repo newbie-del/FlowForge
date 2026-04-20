@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -21,8 +21,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { authClient } from "@/lib/auth-client";
 import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
+import { authClient } from "@/lib/auth-client";
 
 const menuItems = [
   {
@@ -58,11 +58,15 @@ export const AppSidebar = () => {
         <SidebarMenuItem>
           <SidebarMenuButton asChild className="gap-x-4 h-10 px-4">
             <Link href="/" prefetch>
-              <Image src="/logos/logo.svg" alt="Flowforge" width={30} height={30} />
+              <Image
+                src="/logos/logo.svg"
+                alt="Flowforge"
+                width={30}
+                height={30}
+              />
               <span className="font-semibold text-sm">Flowforge</span>
             </Link>
           </SidebarMenuButton>
-
         </SidebarMenuItem>
       </SidebarHeader>
       <SidebarContent>
@@ -98,7 +102,14 @@ export const AppSidebar = () => {
         <SidebarMenu>
           {!hasActiveSubscription && !isLoading && (
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Upgrade to Pro" className="gap-x-4 h-10 px-4" onClick={() => authClient.checkout({ slug: "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_koie47YDe7wY4kPJt6v8QXUo3ygTtTgne8LD71s3EEk/redirect"})}
+              <SidebarMenuButton
+                tooltip="Upgrade to Pro"
+                className="gap-x-4 h-10 px-4"
+                onClick={() =>
+                  authClient.checkout({
+                    slug: "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_koie47YDe7wY4kPJt6v8QXUo3ygTtTgne8LD71s3EEk/redirect",
+                  })
+                }
               >
                 <StarIcon className="h-4 w-4" />
                 <span> Upgrade to pro</span>
@@ -106,19 +117,28 @@ export const AppSidebar = () => {
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Billing Portal" className="gap-x-4 h-10 px-4" onClick={() => authClient.customer.portal()}>
+            <SidebarMenuButton
+              tooltip="Billing Portal"
+              className="gap-x-4 h-10 px-4"
+              onClick={() => authClient.customer.portal()}
+            >
               <CreditCardIcon className="h-4 w-4" />
               <span> Billing Portal</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Sign out" className="gap-x-4 h-10 px-4" onClick={() => authClient.signOut({
-              fetchOptions: {
-                onSuccess: () => {
-                  router.push("/login");
-                },
-              },
-            })}
+            <SidebarMenuButton
+              tooltip="Sign out"
+              className="gap-x-4 h-10 px-4"
+              onClick={() =>
+                authClient.signOut({
+                  fetchOptions: {
+                    onSuccess: () => {
+                      router.push("/login");
+                    },
+                  },
+                })
+              }
             >
               <LogOutIcon className="h-4 w-4" />
               <span> Sign out</span>

@@ -1,13 +1,13 @@
 "use client";
 
 import {
+  AlertCircleIcon,
   BotIcon,
+  CheckCircle2Icon,
+  ExternalLinkIcon,
+  Loader2Icon,
   SendIcon,
   XIcon,
-  Loader2Icon,
-  CheckCircle2Icon,
-  AlertCircleIcon,
-  ExternalLinkIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { AiWorkflowPlan } from "../lib/ai-workflow-schema";
 import { useSupportChat } from "../hooks/use-workflows";
+import type { AiWorkflowPlan } from "../lib/ai-workflow-schema";
 
 interface SupportChatMessage {
   id: string;
@@ -54,7 +54,7 @@ export const WorkflowSupportChat = ({
   // Load messages from localStorage on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
-    
+
     try {
       const storageKey = `flowforge-support-chat-${workflowId}`;
       const stored = window.localStorage.getItem(storageKey);
@@ -70,7 +70,7 @@ export const WorkflowSupportChat = ({
   // Save messages to localStorage whenever they change
   useEffect(() => {
     if (typeof window === "undefined" || messages.length === 0) return;
-    
+
     try {
       const storageKey = `flowforge-support-chat-${workflowId}`;
       window.localStorage.setItem(storageKey, JSON.stringify(messages));
@@ -84,7 +84,7 @@ export const WorkflowSupportChat = ({
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+  }, []);
 
   const handleSendMessage = async () => {
     if (!input.trim() || loading) return;
@@ -191,15 +191,21 @@ export const WorkflowSupportChat = ({
         </TabsList>
 
         {/* Chat Tab */}
-        <TabsContent value="chat" className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <TabsContent
+          value="chat"
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
+        >
           <ScrollArea className="flex-1 min-h-0">
             <div className="space-y-4 p-4 pb-20">
               {messages.length === 0 && (
                 <div className="text-center text-muted-foreground py-8">
                   <BotIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-sm font-medium">Ask me anything about your workflow</p>
+                  <p className="text-sm font-medium">
+                    Ask me anything about your workflow
+                  </p>
                   <p className="text-xs mt-2">
-                    I can help with variable references, debugging, and troubleshooting
+                    I can help with variable references, debugging, and
+                    troubleshooting
                   </p>
                 </div>
               )}
@@ -224,46 +230,50 @@ export const WorkflowSupportChat = ({
                         : "bg-muted"
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">
+                      {message.content}
+                    </p>
 
-                    {message.suggestedActions && message.suggestedActions.length > 0 && (
-                      <div className="mt-3 space-y-2 border-t border-current opacity-70 pt-3">
-                        {message.suggestedActions.map((action, idx) => (
-                          <button
-                            key={idx}
-                            className="w-full text-left text-xs hover:opacity-80 transition-opacity flex items-center gap-2"
-                          >
-                            {action.type === "fix" && (
-                              <CheckCircle2Icon className="w-3 h-3" />
-                            )}
-                            {action.type === "learn" && (
-                              <AlertCircleIcon className="w-3 h-3" />
-                            )}
-                            {action.type === "run" && (
-                              <ExternalLinkIcon className="w-3 h-3" />
-                            )}
-                            {action.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {message.suggestedActions &&
+                      message.suggestedActions.length > 0 && (
+                        <div className="mt-3 space-y-2 border-t border-current opacity-70 pt-3">
+                          {message.suggestedActions.map((action) => (
+                            <button
+                              key={`${action.type}-${action.label}`}
+                              type="button"
+                              className="w-full text-left text-xs hover:opacity-80 transition-opacity flex items-center gap-2"
+                            >
+                              {action.type === "fix" && (
+                                <CheckCircle2Icon className="w-3 h-3" />
+                              )}
+                              {action.type === "learn" && (
+                                <AlertCircleIcon className="w-3 h-3" />
+                              )}
+                              {action.type === "run" && (
+                                <ExternalLinkIcon className="w-3 h-3" />
+                              )}
+                              {action.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                   </div>
-              </div>
-            ))}
-
-            {loading && (
-              <div className="flex gap-3">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Loader2Icon className="w-4 h-4 text-primary animate-spin" />
                 </div>
-                <div className="bg-muted px-3 py-2 rounded-lg">
-                  <p className="text-sm text-muted-foreground">Thinking...</p>
-                </div>
-              </div>
-            )}
+              ))}
 
-            <div ref={messagesEndRef} />
-          </div>
+              {loading && (
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Loader2Icon className="w-4 h-4 text-primary animate-spin" />
+                  </div>
+                  <div className="bg-muted px-3 py-2 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Thinking...</p>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
           </ScrollArea>
 
           {/* Quick Questions */}
@@ -273,9 +283,10 @@ export const WorkflowSupportChat = ({
                 Common questions:
               </p>
               <div className="space-y-2">
-                {quickQuestions.map((question, idx) => (
+                {quickQuestions.map((question) => (
                   <button
-                    key={idx}
+                    key={question}
+                    type="button"
                     onClick={() => handleQuickQuestion(question)}
                     className="w-full text-left text-xs p-2 rounded hover:bg-background transition-colors border"
                   >
@@ -369,7 +380,9 @@ export const WorkflowSupportChat = ({
                   </div>
 
                   <div>
-                    <p className="font-medium text-red-600">Variable Undefined</p>
+                    <p className="font-medium text-red-600">
+                      Variable Undefined
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Check variable names match exactly (case-sensitive)
                     </p>
@@ -385,7 +398,9 @@ export const WorkflowSupportChat = ({
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Nodes:</span>
-                    <span className="font-medium">{workflowPlan.nodes.length}</span>
+                    <span className="font-medium">
+                      {workflowPlan.nodes.length}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Connections:</span>
@@ -396,16 +411,16 @@ export const WorkflowSupportChat = ({
                   <div className="mt-3 p-2 bg-muted rounded">
                     <p className="text-muted-foreground mb-2">Node Types:</p>
                     <div className="flex flex-wrap gap-1">
-                      {Array.from(new Set(workflowPlan.nodes.map((n) => n.type))).map(
-                        (type) => (
-                          <span
-                            key={type}
-                            className="px-2 py-1 bg-background rounded text-xs"
-                          >
-                            {type}
-                          </span>
-                        ),
-                      )}
+                      {Array.from(
+                        new Set(workflowPlan.nodes.map((n) => n.type)),
+                      ).map((type) => (
+                        <span
+                          key={type}
+                          className="px-2 py-1 bg-background rounded text-xs"
+                        >
+                          {type}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>

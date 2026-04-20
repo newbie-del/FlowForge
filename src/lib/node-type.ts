@@ -16,7 +16,5 @@ export function normalizeNodeType(type: string | null | undefined) {
 }
 
 export function isManualTriggerType(type: string | null | undefined) {
-  return (
-    type === MANUAL_TRIGGER_TYPE || type === LEGACY_MANUAL_TRIGGER_TYPE
-  );
+  return type === MANUAL_TRIGGER_TYPE || type === LEGACY_MANUAL_TRIGGER_TYPE;
 }

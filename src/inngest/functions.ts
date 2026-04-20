@@ -13,6 +13,7 @@ import { manualTriggerChannel } from "./channels/manual-trigger";
 import { openAiChannel } from "./channels/openai";
 import { slackChannel } from "./channels/slack";
 import { stripeTriggerChannel } from "./channels/stripe-trigger";
+import { telegramChannel } from "./channels/telegram";
 import { inngest } from "./client";
 import { topologicalSort } from "./utils";
 
@@ -20,7 +21,7 @@ export const executeWorkflow = inngest.createFunction(
   {
     id: "execute-workflow",
     retries: 0, //TODO: Remove in production
-    onFailure: async ({ event, step }) => {
+    onFailure: async ({ event }) => {
       return prisma.execution.update({
         where: { inngestEventId: event.data.event.id },
         data: {
@@ -45,6 +46,7 @@ export const executeWorkflow = inngest.createFunction(
       slackChannel(),
       emailChannel(),
       googleSheetsChannel(),
+      telegramChannel(),
     ],
   },
   async ({ event, step, publish }) => {

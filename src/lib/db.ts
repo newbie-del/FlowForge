@@ -1,7 +1,7 @@
 import { PrismaClient } from "@/generated/prisma";
 
-const globalForPrisma = global as unknown as {  
-    prisma: PrismaClient;
+const globalForPrisma = global as unknown as {
+  prisma: PrismaClient;
 };
 //globalforprisma is a workaround to prevent multiple instances of PrismaClient in development
 
@@ -9,7 +9,7 @@ const globalForPrisma = global as unknown as {
 const prisma = globalForPrisma.prisma || new PrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.prisma = prisma;
+  globalForPrisma.prisma = prisma;
 }
 
-export default prisma; 
+export default prisma;

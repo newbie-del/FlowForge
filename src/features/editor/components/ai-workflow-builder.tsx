@@ -2,14 +2,14 @@
 
 import { type Edge, type Node, useReactFlow } from "@xyflow/react";
 import {
+  AlertCircle,
   BotIcon,
+  CheckCircle2,
   LightbulbIcon,
+  Loader2,
   RefreshCwIcon,
   SparklesIcon,
   WandSparklesIcon,
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -24,16 +24,19 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { useGenerateAiWorkflow, useSaveAiBuilderState } from "@/features/workflows/hooks/use-workflows";
+import { WorkflowSupportChat } from "@/features/workflows/components/workflow-support-chat";
+import {
+  useGenerateAiWorkflow,
+  useSaveAiBuilderState,
+} from "@/features/workflows/hooks/use-workflows";
 import type {
   AiBuilderMessage,
   AiBuilderMode,
   AiWorkflowPlan,
 } from "@/features/workflows/lib/ai-workflow-schema";
 import { useUpgradeModal } from "@/hooks/use-upgrade-modal";
-import { WorkflowSupportChat } from "@/features/workflows/components/workflow-support-chat";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const suggestedPrompts = [
   "Send Gmail alert whenever Google Form gets response",
@@ -55,7 +58,18 @@ type StoredBuilderState = {
   isOpen: boolean;
 };
 
-export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => {
+type WorkflowAIMetadata = {
+  generated?: boolean;
+  prompt?: string;
+  messages?: AiBuilderMessage[];
+  plan?: AiWorkflowPlan | null;
+  provider?: "openai" | "gemini" | "anthropic";
+};
+
+export const AiWorkflowBuilder = ({
+  workflowId,
+  workflowAIMetadata,
+}: Props) => {
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow();
   const generateAiWorkflow = useGenerateAiWorkflow();
   const saveAiBuilderState = useSaveAiBuilderState();
@@ -71,9 +85,9 @@ export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => 
   const [preferredProvider, setPreferredProvider] = useState<
     "openai" | "gemini" | "anthropic" | undefined
   >(undefined);
-  const [activeBuilderTab, setActiveBuilderTab] = useState<"workflow" | "support">(
-    "workflow",
-  );
+  const [activeBuilderTab, setActiveBuilderTab] = useState<
+    "workflow" | "support"
+  >("workflow");
 
   const storageKey = `flowforge-ai-builder-${workflowId}`;
 
@@ -82,7 +96,7 @@ export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => 
     // Load from database AI metadata if available
     if (workflowAIMetadata && typeof workflowAIMetadata === "object") {
       try {
-        const metadata = workflowAIMetadata as any;
+        const metadata = workflowAIMetadata as WorkflowAIMetadata;
         if (metadata.generated === true) {
           setPrompt(metadata.prompt || "");
           setHistory(Array.isArray(metadata.messages) ? metadata.messages : []);
@@ -129,7 +143,7 @@ export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => 
     } catch {
       window.localStorage.removeItem(storageKey);
     }
-  }, [workflowId, workflowAIMetadata]);
+  }, [workflowAIMetadata, storageKey]);
 
   // Persist to localStorage whenever state changes
   useEffect(() => {
@@ -226,7 +240,10 @@ export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => 
           },
         });
       } catch (dbError) {
-        console.error("[AI Builder] Failed to save AI state to database:", dbError);
+        console.error(
+          "[AI Builder] Failed to save AI state to database:",
+          dbError,
+        );
         // Don't fail the generation if database save fails - it's already in memory and localStorage
       }
 
@@ -364,7 +381,9 @@ export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => 
                         }`}
                       >
                         <p className="text-xs font-semibold uppercase tracking-wide mb-1">
-                          {message.role === "user" ? "Your Request" : "AI Response"}
+                          {message.role === "user"
+                            ? "Your Request"
+                            : "AI Response"}
                         </p>
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">
                           {message.content}
@@ -381,10 +400,12 @@ export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => 
                     <div className="border-b p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="font-semibold text-base">{plan.workflowName}</p>
+                          <p className="font-semibold text-base">
+                            {plan.workflowName}
+                          </p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {plan.nodes.length} nodes • {plan.connections.length}{" "}
-                            connections
+                            {plan.nodes.length} nodes •{" "}
+                            {plan.connections.length} connections
                           </p>
                         </div>
                         <Button
@@ -425,13 +446,18 @@ export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => 
                       </TabsList>
 
                       {/* Workflow Tab */}
-                      <TabsContent value="workflow" className="flex-1 overflow-y-auto">
+                      <TabsContent
+                        value="workflow"
+                        className="flex-1 overflow-y-auto"
+                      >
                         <ScrollArea className="h-full">
                           <div className="p-4 space-y-4">
                             {/* Summary & Explanation */}
                             {showWorkflowExplanation ? (
                               <div className="space-y-2">
-                                <p className="text-sm font-medium">How it works:</p>
+                                <p className="text-sm font-medium">
+                                  How it works:
+                                </p>
                                 <p className="text-xs text-muted-foreground leading-relaxed">
                                   {plan.explanation}
                                 </p>
@@ -445,187 +471,205 @@ export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => 
                             <Separator />
 
                             {/* Validation Errors */}
-                    {hasValidationErrors && (
-                      <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3">
-                        <div className="flex gap-2 items-start">
-                          <AlertCircle className="size-4 mt-0.5 shrink-0 text-destructive" />
-                          <div>
-                            <p className="text-xs font-medium text-destructive">
-                              Validation Issues Found
-                            </p>
-                            <ul className="text-xs text-destructive/80 mt-1 space-y-1">
-                              {plan.plannerNotes
-                                ?.filter((note) => note.includes("ERROR:"))
-                                .map((note, idx) => (
-                                  <li key={idx} className="flex gap-1">
-                                    • {note.replace("ERROR: ", "")}
-                                  </li>
+                            {hasValidationErrors && (
+                              <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3">
+                                <div className="flex gap-2 items-start">
+                                  <AlertCircle className="size-4 mt-0.5 shrink-0 text-destructive" />
+                                  <div>
+                                    <p className="text-xs font-medium text-destructive">
+                                      Validation Issues Found
+                                    </p>
+                                    <ul className="text-xs text-destructive/80 mt-1 space-y-1">
+                                      {plan.plannerNotes
+                                        ?.filter((note) =>
+                                          note.includes("ERROR:"),
+                                        )
+                                        .map((note) => (
+                                          <li key={note} className="flex gap-1">
+                                            • {note.replace("ERROR: ", "")}
+                                          </li>
+                                        ))}
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Nodes List */}
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Workflow Steps
+                              </p>
+                              <div className="space-y-2">
+                                {plan.nodes.map((node) => (
+                                  <button
+                                    key={node.id}
+                                    type="button"
+                                    onClick={() => setSelectedNodeId(node.id)}
+                                    className={`w-full text-left rounded-md border p-3 transition-colors ${
+                                      selectedNodeId === node.id
+                                        ? "bg-primary/10 border-primary/50"
+                                        : "hover:bg-muted/50"
+                                    }`}
+                                  >
+                                    <p className="text-sm font-medium">
+                                      {node.title}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {node.description || `Type: ${node.type}`}
+                                    </p>
+                                  </button>
                                 ))}
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                              </div>
+                            </div>
 
-                    {/* Nodes List */}
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Workflow Steps
-                      </p>
-                      <div className="space-y-2">
-                        {plan.nodes.map((node) => (
-                          <button
-                            key={node.id}
-                            type="button"
-                            onClick={() => setSelectedNodeId(node.id)}
-                            className={`w-full text-left rounded-md border p-3 transition-colors ${
-                              selectedNodeId === node.id
-                                ? "bg-primary/10 border-primary/50"
-                                : "hover:bg-muted/50"
-                            }`}
-                          >
-                            <p className="text-sm font-medium">{node.title}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {node.description || `Type: ${node.type}`}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Selected Node Details */}
-                    {selectedNode ? (
-                      <div className="rounded-md bg-muted/30 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                          Node Details
-                        </p>
-                        <div className="space-y-2 text-xs">
-                          <p className="text-muted-foreground">
-                            {selectedNode.description ||
-                              "Part of the workflow chain"}
-                          </p>
-                          {Object.entries(selectedNode.data).length > 0 && (
-                            <details className="cursor-pointer">
-                              <summary className="font-medium hover:underline">
-                                Configuration
-                              </summary>
-                              <pre className="mt-2 text-xs bg-background p-2 rounded border overflow-x-auto">
-                                {JSON.stringify(selectedNode.data, null, 2)}
-                              </pre>
-                            </details>
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {/* Required Credentials */}
-                    {plan.requiredCredentials.length > 0 ? (
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                          Required Credentials
-                        </p>
-                        <div className="space-y-2">
-                          {plan.requiredCredentials.map((cred) => (
-                            <div
-                              key={cred.type}
-                              className="rounded-md border p-3 text-xs"
-                            >
-                              <div className="flex items-start gap-2">
-                                {cred.configured ? (
-                                  <CheckCircle2 className="size-4 mt-0.5 text-green-600 shrink-0" />
-                                ) : (
-                                  <AlertCircle className="size-4 mt-0.5 text-amber-600 shrink-0" />
-                                )}
-                                <div className="flex-1">
-                                  <p className="font-medium">{cred.displayName}</p>
-                                  <p className="text-muted-foreground mt-1">
-                                    {cred.guidance}
+                            {/* Selected Node Details */}
+                            {selectedNode ? (
+                              <div className="rounded-md bg-muted/30 p-3">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                                  Node Details
+                                </p>
+                                <div className="space-y-2 text-xs">
+                                  <p className="text-muted-foreground">
+                                    {selectedNode.description ||
+                                      "Part of the workflow chain"}
                                   </p>
-                                  {cred.configured ? (
-                                    <p className="text-green-600 mt-1 text-xs">
-                                      ✓ Configured
-                                    </p>
-                                  ) : (
-                                    <p className="text-amber-600 mt-1 text-xs">
-                                      ⚠ Not configured yet
-                                    </p>
+                                  {Object.entries(selectedNode.data).length >
+                                    0 && (
+                                    <details className="cursor-pointer">
+                                      <summary className="font-medium hover:underline">
+                                        Configuration
+                                      </summary>
+                                      <pre className="mt-2 text-xs bg-background p-2 rounded border overflow-x-auto">
+                                        {JSON.stringify(
+                                          selectedNode.data,
+                                          null,
+                                          2,
+                                        )}
+                                      </pre>
+                                    </details>
                                   )}
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
+                            ) : null}
 
-                    {/* Missing Inputs */}
-                    {plan.missingInputs.length > 0 ? (
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                          Missing Information
-                        </p>
-                        <div className="space-y-2">
-                          {plan.missingInputs.map((item, index) => (
-                            <div
-                              key={`${item.nodeId}-${item.field}-${index}`}
-                              className="rounded-md border p-3 text-xs"
-                            >
-                              <p className="font-medium">{item.question}</p>
-                              <p className="text-muted-foreground mt-1">
-                                {item.whyItMatters}
-                              </p>
-                              {item.example ? (
-                                <p className="text-xs text-muted-foreground mt-2 italic">
-                                  Example: {item.example}
+                            {/* Required Credentials */}
+                            {plan.requiredCredentials.length > 0 ? (
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                                  Required Credentials
                                 </p>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
+                                <div className="space-y-2">
+                                  {plan.requiredCredentials.map((cred) => (
+                                    <div
+                                      key={cred.type}
+                                      className="rounded-md border p-3 text-xs"
+                                    >
+                                      <div className="flex items-start gap-2">
+                                        {cred.configured ? (
+                                          <CheckCircle2 className="size-4 mt-0.5 text-green-600 shrink-0" />
+                                        ) : (
+                                          <AlertCircle className="size-4 mt-0.5 text-amber-600 shrink-0" />
+                                        )}
+                                        <div className="flex-1">
+                                          <p className="font-medium">
+                                            {cred.displayName}
+                                          </p>
+                                          <p className="text-muted-foreground mt-1">
+                                            {cred.guidance}
+                                          </p>
+                                          {cred.configured ? (
+                                            <p className="text-green-600 mt-1 text-xs">
+                                              ✓ Configured
+                                            </p>
+                                          ) : (
+                                            <p className="text-amber-600 mt-1 text-xs">
+                                              ⚠ Not configured yet
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
 
-                    {/* Setup Checklist / Next Steps */}
-                    {plan.userNextSteps.length > 0 ? (
-                      <div className="rounded-md bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-900 p-4">
-                        <div className="flex items-start gap-2 mb-3">
-                          <CheckCircle2 className="size-4 mt-0.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
-                            Setup Checklist
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          {plan.userNextSteps.map((step, index) => (
-                            <div key={index} className="flex gap-3">
-                              <span className="text-xs font-medium text-blue-600 dark:text-blue-400 flex-shrink-0 pt-0.5">
-                                {index + 1}.
-                              </span>
-                              <p className="text-xs text-foreground leading-relaxed">
-                                {step}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
+                            {/* Missing Inputs */}
+                            {plan.missingInputs.length > 0 ? (
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                                  Missing Information
+                                </p>
+                                <div className="space-y-2">
+                                  {plan.missingInputs.map((item, index) => (
+                                    <div
+                                      key={`${item.nodeId}-${item.field}-${index}`}
+                                      className="rounded-md border p-3 text-xs"
+                                    >
+                                      <p className="font-medium">
+                                        {item.question}
+                                      </p>
+                                      <p className="text-muted-foreground mt-1">
+                                        {item.whyItMatters}
+                                      </p>
+                                      {item.example ? (
+                                        <p className="text-xs text-muted-foreground mt-2 italic">
+                                          Example: {item.example}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
 
-                    {/* Unsupported Features */}
-                    {plan.unsupportedRequests.length > 0 ? (
-                      <div className="rounded-md border p-3 text-xs">
-                        <p className="font-medium mb-2">Unsupported Features</p>
-                        <ul className="space-y-1 text-muted-foreground list-disc pl-5">
-                          {plan.unsupportedRequests.map((entry) => (
-                            <li key={entry}>{entry}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
+                            {/* Setup Checklist / Next Steps */}
+                            {plan.userNextSteps.length > 0 ? (
+                              <div className="rounded-md bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-900 p-4">
+                                <div className="flex items-start gap-2 mb-3">
+                                  <CheckCircle2 className="size-4 mt-0.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                                    Setup Checklist
+                                  </p>
+                                </div>
+                                <div className="space-y-2">
+                                  {plan.userNextSteps.map((step, index) => (
+                                    <div key={step} className="flex gap-3">
+                                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400 flex-shrink-0 pt-0.5">
+                                        {index + 1}.
+                                      </span>
+                                      <p className="text-xs text-foreground leading-relaxed">
+                                        {step}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {/* Unsupported Features */}
+                            {plan.unsupportedRequests.length > 0 ? (
+                              <div className="rounded-md border p-3 text-xs">
+                                <p className="font-medium mb-2">
+                                  Unsupported Features
+                                </p>
+                                <ul className="space-y-1 text-muted-foreground list-disc pl-5">
+                                  {plan.unsupportedRequests.map((entry) => (
+                                    <li key={entry}>{entry}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
                           </div>
                         </ScrollArea>
                       </TabsContent>
 
                       {/* Support Chat Tab */}
-                      <TabsContent value="support" className="flex-1 overflow-hidden">
+                      <TabsContent
+                        value="support"
+                        className="flex-1 overflow-hidden"
+                      >
                         <WorkflowSupportChat
                           workflowId={workflowId}
                           workflowPlan={plan}
@@ -644,9 +688,9 @@ export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => 
           <div className="shrink-0 space-y-3 p-4">
             {/* AI Provider Selector */}
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 AI Provider
-              </label>
+              </p>
               <div className="flex flex-wrap gap-2">
                 {(
                   [
@@ -661,7 +705,9 @@ export const AiWorkflowBuilder = ({ workflowId, workflowAIMetadata }: Props) => 
                     size="sm"
                     variant={preferredProvider === id ? "default" : "outline"}
                     onClick={() =>
-                      setPreferredProvider(preferredProvider === id ? undefined : id)
+                      setPreferredProvider(
+                        preferredProvider === id ? undefined : id,
+                      )
                     }
                     disabled={isGenerating}
                     className="flex-1 sm:flex-none"

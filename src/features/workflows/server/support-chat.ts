@@ -265,10 +265,11 @@ function detectWorkflowIssues(plan: AiWorkflowPlan): string {
     ])
     .filter((v) => typeof v === "string");
 
-  const usedVariables = variableRefs
-    .join(" ")
-    .match(/\{\{([^}]+)\}\}/g)
-    ?.map((v) => v.replace(/[{}]/g, "").split(".")[0]) ?? [];
+  const usedVariables =
+    variableRefs
+      .join(" ")
+      .match(/\{\{([^}]+)\}\}/g)
+      ?.map((v) => v.replace(/[{}]/g, "").split(".")[0]) ?? [];
 
   const outputVariables = new Set<string>();
   plan.nodes.forEach((node) => {
@@ -292,14 +293,15 @@ function detectWorkflowIssues(plan: AiWorkflowPlan): string {
   });
 
   allNodeIds.forEach((id) => {
-    if (!connectedNodeIds.has(id) && !plan.nodes.find((n) => n.id === id)?.type?.includes("TRIGGER")) {
+    if (
+      !connectedNodeIds.has(id) &&
+      !plan.nodes.find((n) => n.id === id)?.type?.includes("TRIGGER")
+    ) {
       issues.push(`- Node "${id}" is not connected to workflow`);
     }
   });
 
-  return issues.length > 0
-    ? issues.join("\n")
-    : "- No obvious issues detected";
+  return issues.length > 0 ? issues.join("\n") : "- No obvious issues detected";
 }
 
 export async function generateSupportChatResponse(

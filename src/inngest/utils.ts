@@ -1,61 +1,63 @@
-import { Connection, Node } from "@/generated/prisma";
-import toposort from "toposort";
-import { inngest } from "./client";
 import { createId } from "@paralleldrive/cuid2";
+import toposort from "toposort";
+import type { Connection, Node } from "@/generated/prisma";
+import { inngest } from "./client";
 
 export const topologicalSort = (
-    nodes: Node[],
-    connections: Connection[],
+  nodes: Node[],
+  connections: Connection[],
 ): Node[] => {
-    // If now connections, return nodes as is
-    if (connections.length === 0) {
-        return nodes;
+  // If now connections, return nodes as is
+  if (connections.length === 0) {
+    return nodes;
+  }
+
+  // Create edges for toposort
+  const edges: [string, string][] = connections.map((conn) => [
+    conn.fromNodeId,
+    conn.toNodeId,
+  ]);
+
+  //Add nodes with no connections as self-edges to ensure they are included
+  const connectionNodeIds = new Set<string>();
+  for (const conn of connections) {
+    connectionNodeIds.add(conn.fromNodeId);
+    connectionNodeIds.add(conn.toNodeId);
+  }
+
+  for (const node of nodes) {
+    if (!connectionNodeIds.has(node.id)) {
+      edges.push([node.id, node.id]);
     }
+  }
 
-    // Create edges for toposort
-    const edges: [string, string][] = connections.map((conn) => [
-        conn.fromNodeId,
-        conn.toNodeId,
-    ]);
-
-    //Add nodes with no connections as self-edges to ensure they are included
-    const connectionNodeIds = new Set<string>();
-    for (const conn of connections) {
-        connectionNodeIds.add(conn.fromNodeId);
-        connectionNodeIds.add(conn.toNodeId);
+  //Perform topological sort
+  let sortedNodeIds: string[];
+  try {
+    sortedNodeIds = toposort(edges);
+    //Remove duplicate from self-edges
+    sortedNodeIds = [...new Set(sortedNodeIds)];
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Cyclic")) {
+      throw new Error("Workflow contains a cycle");
     }
+    throw error;
+  }
 
-    for (const node of nodes) {
-        if (!connectionNodeIds.has(node.id)) {
-            edges.push([node.id, node.id]);
-        }
-    }
-
-    //Perform topological sort
-    let sortedNodeIds: string[];
-    try {
-        sortedNodeIds = toposort(edges);
-        //Remove duplicate from self-edges
-        sortedNodeIds = [...new Set(sortedNodeIds)];
-    } catch (error) {
-        if (error instanceof Error && error.message.includes("Cyclic")) {
-            throw new Error( "Workflow contains a cycle");
-        }
-        throw error;
-    }
-
-    //Map sorted IDs back to nodes
-    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-    return sortedNodeIds.map((id) => nodeMap.get(id)!).filter(Boolean);
+  //Map sorted IDs back to nodes
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  return sortedNodeIds
+    .map((id) => nodeMap.get(id))
+    .filter((node): node is Node => Boolean(node));
 };
-    
+
 export const sendWorkflowExecution = async (data: {
-    workflowId: string;
-    [key: string]: any;
+  workflowId: string;
+  [key: string]: unknown;
 }) => {
-    return inngest.send({
-        name: "workflows/execute.workflow",
-        data,
-        id:createId(),
-    });
+  return inngest.send({
+    name: "workflows/execute.workflow",
+    data,
+    id: createId(),
+  });
 };

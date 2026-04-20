@@ -11,10 +11,10 @@ import {
   premiumProcedure,
   protectedProcedure,
 } from "@/trpc/init";
+import type { AiWorkflowPlan } from "../lib/ai-workflow-schema";
 import { aiWorkflowBuilderInputSchema } from "../lib/ai-workflow-schema";
 import { generateAiWorkflowPlan } from "./ai-builder";
 import { generateSupportChatResponse } from "./support-chat";
-import type { AiWorkflowPlan, WorkflowAIMetadata } from "../lib/ai-workflow-schema";
 
 export const workflowsRouter = createTRPCRouter({
   execute: protectedProcedure
@@ -115,33 +115,88 @@ export const workflowsRouter = createTRPCRouter({
 
       // Transaction to ensure consistency
       return await prisma.$transaction(async (tx) => {
-        //Delete existing nodes and connections (cascade deletes connections)
+        const usedNodeIds = new Set<string>();
+        const firstNodeIdMapping = new Map<string, string>();
+
+        const normalizedNodes = nodes.map((node, index) => {
+          const originalId = String(node.id || `node_${index + 1}`);
+          const scopedId = originalId.startsWith(`${id}__`)
+            ? originalId
+            : `${id}__${originalId}`;
+          let nextId = scopedId;
+          let suffix = 1;
+
+          while (usedNodeIds.has(nextId)) {
+            nextId = `${scopedId}_${suffix++}`;
+          }
+
+          usedNodeIds.add(nextId);
+          if (!firstNodeIdMapping.has(originalId)) {
+            firstNodeIdMapping.set(originalId, nextId);
+          }
+
+          return {
+            ...node,
+            id: nextId,
+          };
+        });
+
+        const seenConnections = new Set<string>();
+        const normalizedEdges = edges
+          .map((edge) => ({
+            ...edge,
+            source: firstNodeIdMapping.get(edge.source) ?? edge.source,
+            target: firstNodeIdMapping.get(edge.target) ?? edge.target,
+          }))
+          .filter(
+            (edge) =>
+              usedNodeIds.has(edge.source) && usedNodeIds.has(edge.target),
+          )
+          .filter((edge) => {
+            const key = `${edge.source}|${edge.target}|${edge.sourceHandle || "main"}|${edge.targetHandle || "main"}`;
+            if (seenConnections.has(key)) {
+              return false;
+            }
+            seenConnections.add(key);
+            return true;
+          });
+
+        //Delete existing connections first (foreign key constraint)
+        await tx.connection.deleteMany({
+          where: { workflowId: id },
+        });
+
+        //Delete existing nodes
         await tx.node.deleteMany({
           where: { workflowId: id },
         });
 
         //Create nodes
-        await tx.node.createMany({
-          data: nodes.map((node) => ({
-            id: node.id,
-            workflowId: id,
-            name: node.type || "unknown",
-            type: node.type as NodeType,
-            position: node.position,
-            data: node.data || {},
-          })),
-        });
+        if (normalizedNodes.length > 0) {
+          await tx.node.createMany({
+            data: normalizedNodes.map((node) => ({
+              id: node.id,
+              workflowId: id,
+              name: node.type || "unknown",
+              type: node.type as NodeType,
+              position: node.position,
+              data: node.data || {},
+            })),
+          });
+        }
 
         //Create connections
-        await tx.connection.createMany({
-          data: edges.map((edge) => ({
-            workflowId: id,
-            fromNodeId: edge.source,
-            toNodeId: edge.target,
-            fromOutput: edge.sourceHandle || "main",
-            toInput: edge.targetHandle || "main",
-          })),
-        });
+        if (normalizedEdges.length > 0) {
+          await tx.connection.createMany({
+            data: normalizedEdges.map((edge) => ({
+              workflowId: id,
+              fromNodeId: edge.source,
+              toNodeId: edge.target,
+              fromOutput: edge.sourceHandle || "main",
+              toInput: edge.targetHandle || "main",
+            })),
+          });
+        }
 
         //update workflow's updatedAt timestamp
         await tx.workflow.update({
@@ -261,9 +316,7 @@ export const workflowsRouter = createTRPCRouter({
             content: z.string(),
           }),
         ),
-        preferredProvider: z
-          .enum(["openai", "gemini", "anthropic"])
-          .optional(),
+        preferredProvider: z.enum(["openai", "gemini", "anthropic"]).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -306,7 +359,7 @@ export const workflowsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const now = new Date().toISOString();
 
-      const workflow = await prisma.workflow.findUniqueOrThrow({
+      const _workflow = await prisma.workflow.findUniqueOrThrow({
         where: { id: input.workflowId, userId: ctx.auth.user.id },
       });
 

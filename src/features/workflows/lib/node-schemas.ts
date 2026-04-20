@@ -3,7 +3,7 @@ import { NodeType } from "@/generated/prisma";
 
 /**
  * Node IO Schema System
- * 
+ *
  * Defines what each node type requires as input and what it outputs.
  * This is used by:
  * 1. AI Planner - understand node compatibility
@@ -17,90 +17,142 @@ import { NodeType } from "@/generated/prisma";
 
 export const nodeInputSchemas: Record<NodeType, z.ZodSchema> = {
   [NodeType.INITIAL]: z.object({}).strict(),
-  
+
   [NodeType.MANUAL_TRIGGER]: z.object({}).strict(),
 
-  [NodeType.GOOGLE_FORM_TRIGGER]: z.object({
-    formId: z.string().optional(),
-    watchMode: z.string().optional(),
-  }).strict(),
+  [NodeType.GOOGLE_FORM_TRIGGER]: z
+    .object({
+      formId: z.string().optional(),
+      watchMode: z.string().optional(),
+    })
+    .strict(),
 
-  [NodeType.STRIPE_TRIGGER]: z.object({
-    eventType: z.string().optional(),
-    endpointSecret: z.string().optional(),
-  }).strict(),
+  [NodeType.STRIPE_TRIGGER]: z
+    .object({
+      eventType: z.string().optional(),
+      endpointSecret: z.string().optional(),
+    })
+    .strict(),
 
-  [NodeType.HTTP_REQUEST]: z.object({
-    variableName: z.string().min(1),
-    endpoint: z.string().min(1),
-    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
-    body: z.string().optional(),
-    headersJson: z.string().optional(),
-  }).strict(),
+  [NodeType.HTTP_REQUEST]: z
+    .object({
+      variableName: z.string().min(1),
+      endpoint: z.string().min(1),
+      method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+      body: z.string().optional(),
+      headersJson: z.string().optional(),
+    })
+    .strict(),
 
-  [NodeType.EMAIL]: z.object({
-    provider: z.string(),
-    credentialId: z.string().min(1),
-    fromEmail: z.string().email(),
-    toEmail: z.string().min(1),
-    cc: z.string().optional(),
-    bcc: z.string().optional(),
-    subject: z.string().min(1),
-    messageBody: z.string().min(1),
-    htmlMode: z.boolean().optional(),
-    attachmentsJson: z.string().optional(),
-    customHost: z.string().optional(),
-    customPort: z.number().optional(),
-    customSecure: z.boolean().optional(),
-  }).strict(),
+  [NodeType.EMAIL]: z
+    .object({
+      provider: z.string(),
+      credentialId: z.string().min(1),
+      fromEmail: z.string().email(),
+      toEmail: z.string().min(1),
+      cc: z.string().optional(),
+      bcc: z.string().optional(),
+      subject: z.string().min(1),
+      messageBody: z.string().min(1),
+      htmlMode: z.boolean().optional(),
+      attachmentsJson: z.string().optional(),
+      customHost: z.string().optional(),
+      customPort: z.number().optional(),
+      customSecure: z.boolean().optional(),
+    })
+    .strict(),
 
-  [NodeType.DISCORD]: z.object({
-    variableName: z.string().min(1),
-    webhookUrl: z.string().url(),
-    content: z.string().min(1),
-    username: z.string().optional(),
-  }).strict(),
+  [NodeType.DISCORD]: z
+    .object({
+      variableName: z.string().min(1),
+      webhookUrl: z.string().url(),
+      content: z.string().min(1),
+      username: z.string().optional(),
+    })
+    .strict(),
 
-  [NodeType.SLACK]: z.object({
-    variableName: z.string().min(1),
-    webhookUrl: z.string().url(),
-    content: z.string().min(1),
-    username: z.string().optional(),
-  }).strict(),
+  [NodeType.SLACK]: z
+    .object({
+      variableName: z.string().min(1),
+      webhookUrl: z.string().url(),
+      content: z.string().min(1),
+      username: z.string().optional(),
+    })
+    .strict(),
 
-  [NodeType.GOOGLE_SHEETS]: z.object({
-    credentialId: z.string().min(1),
-    spreadsheetId: z.string().min(1),
-    sheetName: z.string().min(1),
-    operation: z.enum(["append_row", "update_row", "find_rows", "delete_rows", "create_sheet"]),
-    range: z.string(),
-    columnMappingJson: z.string().optional(),
-    limitRows: z.number().optional(),
-    useFirstRowAsHeaders: z.boolean().optional(),
-    matchColumn: z.string().optional(),
-    matchValue: z.string().optional(),
-  }).strict(),
+  [NodeType.TELEGRAM]: z
+    .object({
+      variableName: z.string().min(1),
+      credentialId: z.string().min(1),
+      chatId: z.string().min(1),
+      message: z.string().optional(),
+      parseMode: z.enum(["plain", "markdown", "html"]).optional(),
+      operation: z
+        .enum(["send_message", "send_photo", "send_document"])
+        .optional(),
+      photoUrl: z.string().optional(),
+      documentUrl: z.string().optional(),
+      photoSource: z.enum(["url", "upload", "previous_node"]).optional(),
+      documentSource: z.enum(["url", "upload", "previous_node"]).optional(),
+      photoFileName: z.string().optional(),
+      photoMimeType: z.string().optional(),
+      photoBase64: z.string().optional(),
+      photoBinaryTemplate: z.string().optional(),
+      documentFileName: z.string().optional(),
+      documentMimeType: z.string().optional(),
+      documentBase64: z.string().optional(),
+      documentBinaryTemplate: z.string().optional(),
+      disableNotification: z.boolean().optional(),
+    })
+    .strict(),
 
-  [NodeType.OPENAI]: z.object({
-    variableName: z.string().min(1),
-    credentialId: z.string().min(1),
-    systemPrompt: z.string(),
-    userPrompt: z.string().min(1),
-  }).strict(),
+  [NodeType.GOOGLE_SHEETS]: z
+    .object({
+      credentialId: z.string().min(1),
+      spreadsheetId: z.string().min(1),
+      sheetName: z.string().min(1),
+      operation: z.enum([
+        "append_row",
+        "update_row",
+        "find_rows",
+        "delete_rows",
+        "create_sheet",
+      ]),
+      range: z.string(),
+      columnMappingJson: z.string().optional(),
+      limitRows: z.number().optional(),
+      useFirstRowAsHeaders: z.boolean().optional(),
+      matchColumn: z.string().optional(),
+      matchValue: z.string().optional(),
+    })
+    .strict(),
 
-  [NodeType.GEMINI]: z.object({
-    variableName: z.string().min(1),
-    credentialId: z.string().min(1),
-    systemPrompt: z.string(),
-    userPrompt: z.string().min(1),
-  }).strict(),
+  [NodeType.OPENAI]: z
+    .object({
+      variableName: z.string().min(1),
+      credentialId: z.string().min(1),
+      systemPrompt: z.string(),
+      userPrompt: z.string().min(1),
+    })
+    .strict(),
 
-  [NodeType.ANTHROPIC]: z.object({
-    variableName: z.string().min(1),
-    credentialId: z.string().min(1),
-    systemPrompt: z.string(),
-    userPrompt: z.string().min(1),
-  }).strict(),
+  [NodeType.GEMINI]: z
+    .object({
+      variableName: z.string().min(1),
+      credentialId: z.string().min(1),
+      systemPrompt: z.string(),
+      userPrompt: z.string().min(1),
+    })
+    .strict(),
+
+  [NodeType.ANTHROPIC]: z
+    .object({
+      variableName: z.string().min(1),
+      credentialId: z.string().min(1),
+      systemPrompt: z.string(),
+      userPrompt: z.string().min(1),
+    })
+    .strict(),
 };
 
 // ============================================================================
@@ -116,7 +168,7 @@ export type NodeOutput = {
 export const nodeOutputSchemas: Record<NodeType, NodeOutput> = {
   [NodeType.INITIAL]: {
     variableName: "initial",
-    structure: '{}',
+    structure: "{}",
     example: {},
   },
 
@@ -129,7 +181,10 @@ export const nodeOutputSchemas: Record<NodeType, NodeOutput> = {
   [NodeType.GOOGLE_FORM_TRIGGER]: {
     variableName: "formResponse",
     structure: '{ "responses": Record<string, string>, "timestamp": ISO8601 }',
-    example: { responses: { field1: "value1" }, timestamp: "2024-01-01T00:00:00Z" },
+    example: {
+      responses: { field1: "value1" },
+      timestamp: "2024-01-01T00:00:00Z",
+    },
   },
 
   [NodeType.STRIPE_TRIGGER]: {
@@ -140,7 +195,8 @@ export const nodeOutputSchemas: Record<NodeType, NodeOutput> = {
 
   [NodeType.HTTP_REQUEST]: {
     variableName: "", // Uses configurable variableName (e.g., "httpRequest", "jobs")
-    structure: '{ "httpResponse": { "status": number, "statusText": string, "data": unknown } }',
+    structure:
+      '{ "httpResponse": { "status": number, "statusText": string, "data": unknown } }',
     example: {
       httpResponse: { status: 200, statusText: "OK", data: { jobs: [] } },
     },
@@ -164,6 +220,19 @@ export const nodeOutputSchemas: Record<NodeType, NodeOutput> = {
     example: { messageContent: "Message sent" },
   },
 
+  [NodeType.TELEGRAM]: {
+    variableName: "", // Uses configurable variableName (e.g., "telegramAlert", "notification")
+    structure:
+      '{ "success": boolean, "messageId": string | number, "chatId": string, "timestamp": ISO8601, "operation": string }',
+    example: {
+      success: true,
+      messageId: 123456789,
+      chatId: "123456789",
+      timestamp: "2024-01-01T00:00:00Z",
+      operation: "send_message",
+    },
+  },
+
   [NodeType.GOOGLE_SHEETS]: {
     variableName: "sheetsResult",
     structure: '{ "success": boolean, "rows": unknown[] }',
@@ -172,20 +241,32 @@ export const nodeOutputSchemas: Record<NodeType, NodeOutput> = {
 
   [NodeType.OPENAI]: {
     variableName: "", // Uses configurable variableName (e.g., "aiSummary", "classification")
-    structure: '{ "text": string, "usage": { "inputTokens": number, "outputTokens": number } }',
-    example: { text: "AI generated text", usage: { inputTokens: 100, outputTokens: 50 } },
+    structure:
+      '{ "text": string, "usage": { "inputTokens": number, "outputTokens": number } }',
+    example: {
+      text: "AI generated text",
+      usage: { inputTokens: 100, outputTokens: 50 },
+    },
   },
 
   [NodeType.GEMINI]: {
     variableName: "",
-    structure: '{ "text": string, "usage": { "inputTokens": number, "outputTokens": number } }',
-    example: { text: "AI generated text", usage: { inputTokens: 100, outputTokens: 50 } },
+    structure:
+      '{ "text": string, "usage": { "inputTokens": number, "outputTokens": number } }',
+    example: {
+      text: "AI generated text",
+      usage: { inputTokens: 100, outputTokens: 50 },
+    },
   },
 
   [NodeType.ANTHROPIC]: {
     variableName: "",
-    structure: '{ "text": string, "usage": { "inputTokens": number, "outputTokens": number } }',
-    example: { text: "AI generated text", usage: { inputTokens: 100, outputTokens: 50 } },
+    structure:
+      '{ "text": string, "usage": { "inputTokens": number, "outputTokens": number } }',
+    example: {
+      text: "AI generated text",
+      usage: { inputTokens: 100, outputTokens: 50 },
+    },
   },
 };
 
@@ -212,7 +293,7 @@ export interface VariableRegistry {
  * Build variable registry from workflow nodes
  */
 export function buildVariableRegistry(
-  nodes: Array<{ id: string; type: NodeType; data: Record<string, unknown> }>
+  nodes: Array<{ id: string; type: NodeType; data: Record<string, unknown> }>,
 ): VariableRegistry {
   const registry: VariableRegistry = {};
 
@@ -247,7 +328,7 @@ export function buildVariableRegistry(
  */
 export function validateTemplateVariable(
   template: string | undefined,
-  registry: VariableRegistry
+  registry: VariableRegistry,
 ): { valid: boolean; missingVariables: string[] } {
   if (!template) return { valid: true, missingVariables: [] };
 
@@ -255,8 +336,7 @@ export function validateTemplateVariable(
   const variableRegex = /\{\{(\w+)/g;
   const missingVariables: string[] = [];
 
-  let match;
-  while ((match = variableRegex.exec(template)) !== null) {
+  for (const match of template.matchAll(variableRegex)) {
     const varKey = match[1];
     if (!registry[varKey]) {
       missingVariables.push(varKey);
@@ -292,11 +372,21 @@ export const nodeRequirements: Record<NodeType, NodeRequirement[]> = {
 
   [NodeType.STRIPE_TRIGGER]: [
     { field: "eventType", required: true, type: "enum", canUseTemplate: false },
-    { field: "endpointSecret", required: true, type: "string", canUseTemplate: false },
+    {
+      field: "endpointSecret",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
   ],
 
   [NodeType.HTTP_REQUEST]: [
-    { field: "variableName", required: true, type: "string", canUseTemplate: false },
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
     { field: "endpoint", required: true, type: "url", canUseTemplate: true },
     {
       field: "method",
@@ -308,28 +398,104 @@ export const nodeRequirements: Record<NodeType, NodeRequirement[]> = {
   ],
 
   [NodeType.EMAIL]: [
-    { field: "credentialId", required: true, type: "string", canUseTemplate: false },
+    {
+      field: "credentialId",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
     { field: "toEmail", required: true, type: "email", canUseTemplate: true },
     { field: "subject", required: true, type: "string", canUseTemplate: true },
-    { field: "messageBody", required: true, type: "string", canUseTemplate: true },
+    {
+      field: "messageBody",
+      required: true,
+      type: "string",
+      canUseTemplate: true,
+    },
   ],
 
   [NodeType.DISCORD]: [
     { field: "webhookUrl", required: true, type: "url", canUseTemplate: false },
     { field: "content", required: true, type: "string", canUseTemplate: true },
-    { field: "variableName", required: true, type: "string", canUseTemplate: false },
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
   ],
 
   [NodeType.SLACK]: [
     { field: "webhookUrl", required: true, type: "url", canUseTemplate: false },
     { field: "content", required: true, type: "string", canUseTemplate: true },
-    { field: "variableName", required: true, type: "string", canUseTemplate: false },
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+  ],
+
+  [NodeType.TELEGRAM]: [
+    {
+      field: "credentialId",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    { field: "chatId", required: true, type: "string", canUseTemplate: true },
+    { field: "message", required: false, type: "string", canUseTemplate: true },
+    {
+      field: "photoUrl",
+      required: false,
+      type: "string",
+      canUseTemplate: true,
+    },
+    {
+      field: "documentUrl",
+      required: false,
+      type: "string",
+      canUseTemplate: true,
+    },
+    {
+      field: "photoBinaryTemplate",
+      required: false,
+      type: "string",
+      canUseTemplate: true,
+    },
+    {
+      field: "documentBinaryTemplate",
+      required: false,
+      type: "string",
+      canUseTemplate: true,
+    },
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
   ],
 
   [NodeType.GOOGLE_SHEETS]: [
-    { field: "credentialId", required: true, type: "string", canUseTemplate: false },
-    { field: "spreadsheetId", required: true, type: "string", canUseTemplate: false },
-    { field: "sheetName", required: true, type: "string", canUseTemplate: false },
+    {
+      field: "credentialId",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    {
+      field: "spreadsheetId",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    {
+      field: "sheetName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
     {
       field: "operation",
       required: true,
@@ -340,21 +506,66 @@ export const nodeRequirements: Record<NodeType, NodeRequirement[]> = {
   ],
 
   [NodeType.OPENAI]: [
-    { field: "credentialId", required: true, type: "string", canUseTemplate: false },
-    { field: "userPrompt", required: true, type: "string", canUseTemplate: true },
-    { field: "variableName", required: true, type: "string", canUseTemplate: false },
+    {
+      field: "credentialId",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    {
+      field: "userPrompt",
+      required: true,
+      type: "string",
+      canUseTemplate: true,
+    },
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
   ],
 
   [NodeType.GEMINI]: [
-    { field: "credentialId", required: true, type: "string", canUseTemplate: false },
-    { field: "userPrompt", required: true, type: "string", canUseTemplate: true },
-    { field: "variableName", required: true, type: "string", canUseTemplate: false },
+    {
+      field: "credentialId",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    {
+      field: "userPrompt",
+      required: true,
+      type: "string",
+      canUseTemplate: true,
+    },
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
   ],
 
   [NodeType.ANTHROPIC]: [
-    { field: "credentialId", required: true, type: "string", canUseTemplate: false },
-    { field: "userPrompt", required: true, type: "string", canUseTemplate: true },
-    { field: "variableName", required: true, type: "string", canUseTemplate: false },
+    {
+      field: "credentialId",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    {
+      field: "userPrompt",
+      required: true,
+      type: "string",
+      canUseTemplate: true,
+    },
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
   ],
 };
 
@@ -430,8 +641,10 @@ export const apiSpecifications: Record<
   google_sheets_api: {
     name: "Google Sheets API",
     endpoints: {
-      values: "https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/values",
-      batch: "https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/values:batchUpdate",
+      values:
+        "https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/values",
+      batch:
+        "https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/values:batchUpdate",
     },
     authMethod: "oauth",
     requiredHeaders: {
@@ -511,7 +724,8 @@ export const apiRequirementsGuide: Record<
       },
       {
         error: "Discord webhook returns 404",
-        solution: "Webhook URL may have been deleted. Regenerate new webhook in Discord.",
+        solution:
+          "Webhook URL may have been deleted. Regenerate new webhook in Discord.",
       },
       {
         error: "Empty results sent to Discord",
@@ -539,7 +753,8 @@ export const apiRequirementsGuide: Record<
       },
       {
         error: "535 Authentication failed",
-        solution: "For Gmail, use App Password not regular password. For Outlook, verify credentials.",
+        solution:
+          "For Gmail, use App Password not regular password. For Outlook, verify credentials.",
       },
     ],
   },
@@ -569,4 +784,3 @@ export const apiRequirementsGuide: Record<
     ],
   },
 };
-

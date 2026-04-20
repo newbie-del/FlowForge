@@ -14,11 +14,7 @@ import type {
   AiWorkflowPlan,
 } from "../lib/ai-workflow-schema";
 import { aiWorkflowPlanSchema } from "../lib/ai-workflow-schema";
-import {
-  nodeOutputSchemas,
-  apiSpecifications,
-  apiRequirementsGuide,
-} from "../lib/node-schemas";
+import { apiRequirementsGuide, apiSpecifications } from "../lib/node-schemas";
 import { WorkflowValidator } from "../lib/workflow-validator";
 
 type PlannerModelSelection = {
@@ -38,6 +34,52 @@ const triggerTypes = new Set<NodeType>([
   NodeType.STRIPE_TRIGGER,
 ]);
 
+const telegramKeywords = [
+  "telegram",
+  "tg",
+  "telegram bot",
+  "telegram message",
+  "telegram alert",
+  "telegram notify",
+  "send telegram",
+  "chat id",
+  "botfather",
+  "notify on telegram",
+  "send to telegram",
+];
+
+function hasTelegramIntent(prompt: string) {
+  const lower = prompt.toLowerCase();
+  return telegramKeywords.some((keyword) => lower.includes(keyword));
+}
+
+function getTelegramOperationFromPrompt(
+  prompt: string,
+): "send_message" | "send_photo" | "send_document" {
+  const lower = prompt.toLowerCase();
+
+  if (
+    lower.includes("pdf") ||
+    lower.includes("document") ||
+    lower.includes("doc") ||
+    lower.includes("file") ||
+    lower.includes("report")
+  ) {
+    return "send_document";
+  }
+
+  if (
+    lower.includes("image") ||
+    lower.includes("photo") ||
+    lower.includes("screenshot") ||
+    lower.includes("picture")
+  ) {
+    return "send_photo";
+  }
+
+  return "send_message";
+}
+
 const credentialRequiredByNodeType: Partial<Record<NodeType, CredentialType>> =
   {
     [NodeType.OPENAI]: CredentialType.OPENAI,
@@ -45,6 +87,7 @@ const credentialRequiredByNodeType: Partial<Record<NodeType, CredentialType>> =
     [NodeType.ANTHROPIC]: CredentialType.ANTHROPIC,
     [NodeType.EMAIL]: CredentialType.SMTP,
     [NodeType.GOOGLE_SHEETS]: CredentialType.GOOGLE_SHEETS,
+    [NodeType.TELEGRAM]: CredentialType.TELEGRAM_BOT,
   };
 
 /**
@@ -77,6 +120,16 @@ ACTIONS (do things):
   Fields: webhookUrl, content, username, variableName
   Template: content should be {{aiResult.text}} or similar
 
+- TELEGRAM: Send Telegram message/photo/document. Output: telegramResult = { success, messageId, chatId }
+  Fields: credentialId, chatId (numeric or @username), operation (send_message|send_photo|send_document), message, parseMode (plain|markdown|html), disableNotification,
+          photoSource/documentSource (url|upload|previous_node), photoUrl/documentUrl, photoBinaryTemplate/documentBinaryTemplate
+  Operations:
+    * send_message: Send text message. Set 'message' field. Use template variables like {{httpData.title}}
+    * send_photo: Send photo with optional caption. Prefer photoSource="previous_node" when image comes from prior node; use photoBinaryTemplate like {{json screenshot.binary}}
+    * send_document: Send document with optional caption. Prefer documentSource="previous_node" for prior-node file output; use documentBinaryTemplate like {{json report.binary}}
+  Example: message="🎯 Job Alert: {{jobs.title}} at {{jobs.company}}", photoUrl="{{imageUrl}}"
+  IMPORTANT: Telegram keywords (telegram/tg/bot/botfather/chat id) must map to TELEGRAM node as final delivery node.
+
 - GOOGLE_SHEETS: Read/write Google Sheets. Output: sheetsResult = { success, rows }
   Fields: credentialId, spreadsheetId, sheetName, operation (append_row|update_row|find_rows)
   Template: Use columnMappingJson with {{variableName.fieldName}} for data mapping
@@ -91,7 +144,8 @@ DATA FLOW RULES:
 2. Template variables {{variableName}} reference previous node outputs
 3. For HTTP requests, data is available as {{httpVariableName.httpResponse.data}}
 4. For AI nodes, output is available as {{aiVariableName.text}}
-5. Always use the exact variable name you set in each node!
+5. For Telegram, use {{variableName.httpResponse.data.field}} for photos/documents URLs
+6. Always use the exact variable name you set in each node!
 
 EXAMPLE WORKFLOW:
 Prompt: "Search for React jobs daily and email top 5"
@@ -99,7 +153,7 @@ Flow:
 1. Schedule Trigger (MANUAL_TRIGGER) → no output needed
 2. HTTP_REQUEST with variableName="jobsApi" → fetches jobs with auth
    endpoint: "https://api.example.com/jobs?query=React"
-   headersJson: "{\"Authorization\": \"Bearer YOUR_API_KEY\", \"Accept\": \"application/json\"}"
+   headersJson: "{"Authorization": "Bearer YOUR_API_KEY", "Accept": "application/json"}"
    Outputs: jobsApi = { httpResponse: { data: [...] } }
 3. OPENAI with variableName="summary" → selects top 5
    userPrompt: "Pick top 5 jobs from: {{json jobsApi.httpResponse.data}}"
@@ -138,6 +192,8 @@ function getNodeTitle(type: NodeType) {
       return "Email";
     case NodeType.GOOGLE_SHEETS:
       return "Google Sheets";
+    case NodeType.TELEGRAM:
+      return "Telegram";
     case NodeType.INITIAL:
       return "Initial";
     default:
@@ -159,7 +215,8 @@ function ensureNodeDefaults(node: AiWorkflowPlan["nodes"][number]) {
           endpoint: String(data.endpoint ?? ""),
           method: String(data.method ?? "GET").toUpperCase(),
           body: typeof data.body === "string" ? data.body : "",
-          headersJson: typeof data.headersJson === "string" ? data.headersJson : "{}",
+          headersJson:
+            typeof data.headersJson === "string" ? data.headersJson : "{}",
         },
       };
     case NodeType.EMAIL:
@@ -233,6 +290,32 @@ function ensureNodeDefaults(node: AiWorkflowPlan["nodes"][number]) {
           webhookUrl: String(data.webhookUrl ?? ""),
           content: String(data.content ?? ""),
           username: typeof data.username === "string" ? data.username : "",
+        },
+      };
+    case NodeType.TELEGRAM:
+      return {
+        ...node,
+        data: {
+          variableName: String(data.variableName ?? "telegramAlert"),
+          credentialId:
+            typeof data.credentialId === "string" ? data.credentialId : "",
+          chatId: String(data.chatId ?? ""),
+          operation: String(data.operation ?? "send_message"),
+          message: String(data.message ?? "Workflow notification"),
+          parseMode: String(data.parseMode ?? "plain"),
+          disableNotification: Boolean(data.disableNotification ?? false),
+          photoSource: String(data.photoSource ?? "url"),
+          documentSource: String(data.documentSource ?? "url"),
+          photoUrl: String(data.photoUrl ?? ""),
+          documentUrl: String(data.documentUrl ?? ""),
+          photoFileName: String(data.photoFileName ?? ""),
+          photoMimeType: String(data.photoMimeType ?? ""),
+          photoBase64: String(data.photoBase64 ?? ""),
+          photoBinaryTemplate: String(data.photoBinaryTemplate ?? ""),
+          documentFileName: String(data.documentFileName ?? ""),
+          documentMimeType: String(data.documentMimeType ?? ""),
+          documentBase64: String(data.documentBase64 ?? ""),
+          documentBinaryTemplate: String(data.documentBinaryTemplate ?? ""),
         },
       };
     default:
@@ -357,7 +440,10 @@ ${guide.commonErrors.map((e) => `- ${e.error}: ${e.solution}`).join("\n")}
 Setup Steps:
 ${guide.setupSteps.map((s) => `- ${s}`).join("\n")}
 `;
-  } else if (requestLower.includes("email") && (requestLower.includes("alert") || requestLower.includes("send"))) {
+  } else if (
+    requestLower.includes("email") &&
+    (requestLower.includes("alert") || requestLower.includes("send"))
+  ) {
     const guide = apiRequirementsGuide["email-alerts"];
     apiGuidanceText = `
 API GUIDANCE FOR THIS WORKFLOW:
@@ -427,11 +513,11 @@ Return ONLY valid JSON matching the schema. No markdown, no explanation.
 ${enhancedNodeCatalog}
 
 CRITICAL REQUIREMENTS:
-1) Use ONLY NodeType values: MANUAL_TRIGGER, GOOGLE_FORM_TRIGGER, STRIPE_TRIGGER, HTTP_REQUEST, GOOGLE_SHEETS, EMAIL, DISCORD, SLACK, OPENAI, GEMINI, ANTHROPIC
+1) Use ONLY NodeType values: MANUAL_TRIGGER, GOOGLE_FORM_TRIGGER, STRIPE_TRIGGER, HTTP_REQUEST, GOOGLE_SHEETS, EMAIL, DISCORD, SLACK, TELEGRAM, OPENAI, GEMINI, ANTHROPIC
 2) EVERY node must have ALL required fields set
 3) Variable names in templates MUST match exact variable names from previous nodes
 4) Check: if HTTP_REQUEST outputs "jobsList", then use {{jobsList.httpResponse.data}} NOT {{httpData}}
-5) Last node should be action (EMAIL/DISCORD/SLACK/SHEETS), not trigger
+5) Last node should be action (EMAIL/DISCORD/SLACK/TELEGRAM/SHEETS), not trigger
 6) Each connection must have from→to with exact node IDs
 7) Create connections in sequential order: trigger→action1→action2...
 8) Use meaningful variable names: jobsList, summary, filtered_results (not generic names)
@@ -439,6 +525,11 @@ CRITICAL REQUIREMENTS:
    - Format: "Authorization": "Bearer {{token}}" or include in headersJson
    - Example: {"Authorization": "Bearer YOUR_API_KEY", "Accept": "application/json"}
 10) Always set headersJson field for HTTP nodes connecting to APIs requiring auth
+11) TELEGRAM INTENT ROUTING: if user mentions any alias (telegram, tg, telegram bot, telegram alert, telegram notify, send telegram, chat id, botfather), include TELEGRAM node and prioritize it as final notification node
+12) TELEGRAM OPERATION AUTO-SET:
+   - "pdf/document/file/report" -> operation=send_document
+   - "image/photo/screenshot/picture" -> operation=send_photo
+   - otherwise -> operation=send_message
 
 TEMPLATE VARIABLE REFERENCE:
 - {{httpVariable.httpResponse.data}} for HTTP node outputs
@@ -541,6 +632,181 @@ function ensureConnections(plan: AiWorkflowPlan) {
   };
 }
 
+function ensureUniqueNodeIds(plan: AiWorkflowPlan) {
+  const usedIds = new Set<string>();
+  const firstIdMapping = new Map<string, string>();
+  let changed = false;
+
+  const nodes = plan.nodes.map((node, index) => {
+    const originalId = String(node.id || `node_${index + 1}`);
+    let nextId = originalId;
+    let suffix = 1;
+
+    while (usedIds.has(nextId)) {
+      nextId = `${originalId}_${suffix++}`;
+    }
+
+    usedIds.add(nextId);
+    if (!firstIdMapping.has(originalId)) {
+      firstIdMapping.set(originalId, nextId);
+    }
+
+    if (nextId !== originalId) {
+      changed = true;
+      return { ...node, id: nextId };
+    }
+
+    return node;
+  });
+
+  const seenConnections = new Set<string>();
+  const connections = plan.connections
+    .map((connection) => {
+      const from = firstIdMapping.get(connection.from) ?? connection.from;
+      const to = firstIdMapping.get(connection.to) ?? connection.to;
+
+      return {
+        ...connection,
+        from,
+        to,
+      };
+    })
+    .filter(
+      (connection) =>
+        usedIds.has(connection.from) && usedIds.has(connection.to),
+    )
+    .filter((connection) => {
+      const key = `${connection.from}|${connection.to}|${connection.fromOutput}|${connection.toInput}`;
+      if (seenConnections.has(key)) {
+        changed = true;
+        return false;
+      }
+      seenConnections.add(key);
+      return true;
+    });
+
+  if (!changed) {
+    return plan;
+  }
+
+  return {
+    ...plan,
+    nodes,
+    connections,
+    plannerNotes: [
+      ...plan.plannerNotes,
+      "Normalized duplicate node IDs to keep workflow persistence valid.",
+    ],
+  };
+}
+
+function enforceTelegramPriority(plan: AiWorkflowPlan, prompt: string) {
+  if (!hasTelegramIntent(prompt)) {
+    return plan;
+  }
+
+  const operation = getTelegramOperationFromPrompt(prompt);
+  const telegramNode = plan.nodes.find(
+    (node) => node.type === NodeType.TELEGRAM,
+  );
+
+  if (telegramNode) {
+    const nextNodes = plan.nodes.map((node) => {
+      if (node.id !== telegramNode.id) return node;
+      return {
+        ...node,
+        title: "Telegram",
+        data: {
+          ...node.data,
+          operation,
+          variableName: String(node.data.variableName ?? "telegramAlert"),
+          parseMode: String(node.data.parseMode ?? "plain"),
+          disableNotification: Boolean(node.data.disableNotification ?? false),
+        },
+      };
+    });
+
+    return {
+      ...plan,
+      nodes: nextNodes,
+      plannerNotes: [
+        ...plan.plannerNotes,
+        "Telegram intent detected: prioritized TELEGRAM node and aligned operation.",
+      ],
+    };
+  }
+
+  const lastNode = plan.nodes[plan.nodes.length - 1];
+  const newTelegramNodeId = `telegram_${plan.nodes.length + 1}`;
+  const firstHttpNode = plan.nodes.find(
+    (node) => node.type === NodeType.HTTP_REQUEST,
+  );
+  const httpVariableName =
+    firstHttpNode && typeof firstHttpNode.data.variableName === "string"
+      ? firstHttpNode.data.variableName
+      : "";
+  const defaultMessage =
+    operation === "send_message"
+      ? "Workflow notification from Flowforge."
+      : "Attachment from workflow.";
+
+  const telegramNodeToAppend: AiWorkflowPlan["nodes"][number] = {
+    id: newTelegramNodeId,
+    type: NodeType.TELEGRAM,
+    title: "Telegram",
+    description: "Send updates to Telegram",
+    data: {
+      variableName: "telegramAlert",
+      credentialId: "",
+      chatId: "",
+      operation,
+      message: defaultMessage,
+      parseMode: "plain",
+      disableNotification: false,
+      photoSource:
+        operation === "send_photo" && httpVariableName
+          ? "previous_node"
+          : "url",
+      documentSource:
+        operation === "send_document" && httpVariableName
+          ? "previous_node"
+          : "url",
+      photoBinaryTemplate:
+        operation === "send_photo" && httpVariableName
+          ? `{{json ${httpVariableName}.httpResponse.data}}`
+          : "",
+      documentBinaryTemplate:
+        operation === "send_document" && httpVariableName
+          ? `{{json ${httpVariableName}.httpResponse.data}}`
+          : "",
+      photoUrl: "",
+      documentUrl: "",
+    },
+  };
+
+  const nextConnections = lastNode
+    ? [
+        ...plan.connections,
+        {
+          from: lastNode.id,
+          to: newTelegramNodeId,
+          fromOutput: "source-1",
+          toInput: "target-1",
+        },
+      ]
+    : plan.connections;
+
+  return {
+    ...plan,
+    nodes: [...plan.nodes, telegramNodeToAppend],
+    connections: nextConnections,
+    plannerNotes: [
+      ...plan.plannerNotes,
+      "Telegram intent detected: appended TELEGRAM node as delivery target.",
+    ],
+  };
+}
+
 /**
  * Detect when data transformation is needed and suggest hints
  * Returns suggestions for AI to include transformer nodes
@@ -554,6 +820,7 @@ function detectTransformationNeeds(
   const hasDiscord = nodes.some((n) => n.type === NodeType.DISCORD);
   const hasEmail = nodes.some((n) => n.type === NodeType.EMAIL);
   const hasSheets = nodes.some((n) => n.type === NodeType.GOOGLE_SHEETS);
+  const hasTelegram = nodes.some((n) => n.type === NodeType.TELEGRAM);
 
   const promptLower = prompt.toLowerCase();
 
@@ -600,6 +867,19 @@ function detectTransformationNeeds(
   ) {
     hints.push(
       "TRANSFORMATION_HINT: Email body needs formatted content from API. Consider AI node to format {{apiData}} into readable email.",
+    );
+  }
+
+  // Detect formatting needs for Telegram
+  if (
+    (promptLower.includes("telegram") ||
+      promptLower.includes("tg") ||
+      promptLower.includes("notify")) &&
+    hasTelegram &&
+    hasHttpNode
+  ) {
+    hints.push(
+      "TRANSFORMATION_HINT: Telegram delivery needs concise formatting. Add AI node to transform API data before TELEGRAM node.",
     );
   }
 
@@ -669,6 +949,7 @@ function buildEnhancedSetupSteps(
   );
   const hasSheets = nodes.some((n) => n.type === NodeType.GOOGLE_SHEETS);
   const hasSlack = nodes.some((n) => n.type === NodeType.SLACK);
+  const hasTelegram = nodes.some((n) => n.type === NodeType.TELEGRAM);
 
   let stepNum = 1;
 
@@ -740,6 +1021,20 @@ function buildEnhancedSetupSteps(
       "→ Install app to your workspace",
       "→ Copy 'Bot User OAuth Token' (starts with xoxb-)",
       "→ In Flowforge: Create SLACK credential and paste token",
+    );
+    stepNum++;
+  }
+
+  if (hasTelegram) {
+    steps.push(
+      `Step ${stepNum}: Setup Telegram Bot`,
+      "→ Open Telegram and start @BotFather",
+      "→ Run /newbot and create your bot",
+      "→ Copy bot token from BotFather",
+      "→ Send at least one message to your bot from target chat/channel",
+      "→ Get chat ID (user/group/channel) and set it in Telegram node",
+      "→ In Flowforge: Create TELEGRAM_BOT credential with bot token",
+      "→ Use 'Test Message' in Telegram node to verify configuration",
     );
     stepNum++;
   }
@@ -836,6 +1131,8 @@ function buildRequiredCredentials(
       "Create SMTP credential (Gmail/Outlook/Custom) and select it in Email node.",
     [CredentialType.GOOGLE_SHEETS]:
       "Create Google Sheets credential (Service Account or OAuth) and select it in Google Sheets node.",
+    [CredentialType.TELEGRAM_BOT]:
+      "Create a Telegram Bot credential with your bot token and select it in Telegram node.",
   };
 
   return [...byType.entries()].map(([type, value]) => {
@@ -929,6 +1226,34 @@ function computeMissingInputs(plan: AiWorkflowPlan) {
         whyItMatters: "Google Sheets node requires target spreadsheet.",
       });
     }
+
+    if (
+      node.type === NodeType.TELEGRAM &&
+      !String(node.data.chatId ?? "").trim()
+    ) {
+      push({
+        nodeId: node.id,
+        field: "chatId",
+        question: "Which Telegram chat ID or @channel username should be used?",
+        whyItMatters:
+          "Telegram node cannot deliver messages without a valid target chat.",
+        example: "-1001234567890 or @my_channel",
+      });
+    }
+
+    if (
+      node.type === NodeType.TELEGRAM &&
+      String(node.data.operation ?? "send_message") === "send_message" &&
+      !String(node.data.message ?? "").trim()
+    ) {
+      push({
+        nodeId: node.id,
+        field: "message",
+        question: "What message should Telegram send?",
+        whyItMatters: "send_message operation requires non-empty text.",
+        example: "New form response received: {{googleForm.responses.Name}}",
+      });
+    }
   }
 
   return questions;
@@ -958,7 +1283,8 @@ function buildFallbackPlan(params: {
   // Determine trigger
   const triggerType = normalizedPrompt.includes("form")
     ? NodeType.GOOGLE_FORM_TRIGGER
-    : normalizedPrompt.includes("stripe") || normalizedPrompt.includes("payment")
+    : normalizedPrompt.includes("stripe") ||
+        normalizedPrompt.includes("payment")
       ? NodeType.STRIPE_TRIGGER
       : NodeType.MANUAL_TRIGGER;
 
@@ -1000,11 +1326,12 @@ function buildFallbackPlan(params: {
     normalizedPrompt.includes("filter") ||
     normalizedPrompt.includes("extract")
   ) {
-    const aiType = params.credentialsByType[CredentialType.GEMINI].length > 0
-      ? NodeType.GEMINI
-      : params.credentialsByType[CredentialType.OPENAI].length > 0
-        ? NodeType.OPENAI
-        : NodeType.ANTHROPIC;
+    const aiType =
+      params.credentialsByType[CredentialType.GEMINI].length > 0
+        ? NodeType.GEMINI
+        : params.credentialsByType[CredentialType.OPENAI].length > 0
+          ? NodeType.OPENAI
+          : NodeType.ANTHROPIC;
 
     pushNode({
       id: makeId("ai"),
@@ -1067,6 +1394,59 @@ function buildFallbackPlan(params: {
         webhookUrl: "",
         content: "{{result.text}}",
         username: "Flowforge",
+      },
+    });
+  } else if (hasTelegramIntent(normalizedPrompt)) {
+    const telegramOperation = getTelegramOperationFromPrompt(normalizedPrompt);
+    const hasAiNode = nodes.some(
+      (n) =>
+        n.type === NodeType.OPENAI ||
+        n.type === NodeType.GEMINI ||
+        n.type === NodeType.ANTHROPIC,
+    );
+    const firstHttpNode = nodes.find((n) => n.type === NodeType.HTTP_REQUEST);
+    const httpVariableName =
+      firstHttpNode && typeof firstHttpNode.data.variableName === "string"
+        ? firstHttpNode.data.variableName
+        : "";
+    pushNode({
+      id: makeId("telegram"),
+      type: NodeType.TELEGRAM,
+      title: "Telegram",
+      description: "Send result to Telegram",
+      data: {
+        variableName: "telegramAlert",
+        credentialId: "",
+        chatId: "",
+        operation: telegramOperation,
+        message:
+          telegramOperation === "send_message"
+            ? hasAiNode
+              ? "{{result.text}}"
+              : httpVariableName
+                ? `{{json ${httpVariableName}.httpResponse.data}}`
+                : "Workflow notification"
+            : "Workflow attachment",
+        parseMode: "plain",
+        disableNotification: false,
+        photoSource:
+          telegramOperation === "send_photo" && httpVariableName
+            ? "previous_node"
+            : "url",
+        documentSource:
+          telegramOperation === "send_document" && httpVariableName
+            ? "previous_node"
+            : "url",
+        photoBinaryTemplate:
+          telegramOperation === "send_photo" && httpVariableName
+            ? `{{json ${httpVariableName}.httpResponse.data}}`
+            : "",
+        documentBinaryTemplate:
+          telegramOperation === "send_document" && httpVariableName
+            ? `{{json ${httpVariableName}.httpResponse.data}}`
+            : "",
+        photoUrl: "",
+        documentUrl: "",
       },
     });
   } else if (
@@ -1156,6 +1536,7 @@ export async function generateAiWorkflowPlan(params: {
       [CredentialType.ANTHROPIC]: [],
       [CredentialType.SMTP]: [],
       [CredentialType.GOOGLE_SHEETS]: [],
+      [CredentialType.TELEGRAM_BOT]: [],
     } as Record<CredentialType, UserCredentialSummary[]>,
   );
 
@@ -1200,8 +1581,13 @@ export async function generateAiWorkflowPlan(params: {
     });
   }
 
-  const withTrigger = ensureSingleTrigger(withDefaults);
-  const withConnections = ensureConnections(withTrigger);
+  const withTelegramPriority = enforceTelegramPriority(
+    withDefaults,
+    params.prompt,
+  );
+  const withTrigger = ensureSingleTrigger(withTelegramPriority);
+  const withUniqueIds = ensureUniqueNodeIds(withTrigger);
+  const withConnections = ensureConnections(withUniqueIds);
   const withPositions = applyPositions(withConnections);
   const withCredentials = attachCredentialDefaults(
     withPositions,
@@ -1247,9 +1633,6 @@ export async function generateAiWorkflowPlan(params: {
       "• Save and run test execution",
       "• Enable workflow when ready",
     ],
-    plannerNotes: [
-      ...withCredentials.plannerNotes,
-      ...validationNotes,
-    ],
+    plannerNotes: [...withCredentials.plannerNotes, ...validationNotes],
   };
 }

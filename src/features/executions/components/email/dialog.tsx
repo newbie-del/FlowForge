@@ -217,293 +217,298 @@ export const EmailDialog = ({
               onSubmit={form.handleSubmit(handleSubmit)}
               className="space-y-6 mt-4 px-6 pb-6"
             >
-            <FormField
-              control={form.control}
-              name="provider"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>SMTP Provider</FormLabel>
-                  <Select
-                    onValueChange={(value: SmtpProvider) =>
-                      field.onChange(value)
-                    }
-                    defaultValue={field.value}
-                  >
+              <FormField
+                control={form.control}
+                name="provider"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SMTP Provider</FormLabel>
+                    <Select
+                      onValueChange={(value: SmtpProvider) =>
+                        field.onChange(value)
+                      }
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select provider" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="gmail">Gmail</SelectItem>
+                        <SelectItem value="outlook">Outlook</SelectItem>
+                        <SelectItem value="custom">Custom SMTP</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="credentialId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Credential</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      disabled={isLoadingCredentials || !credentials?.length}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select SMTP credential" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {credentials?.map((credential) => (
+                          <SelectItem key={credential.id} value={credential.id}>
+                            {credential.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {provider === "custom" && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="customHost"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Custom SMTP Host</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="smtp.your-domain.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="customPort"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Custom SMTP Port</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="587"
+                            value={
+                              typeof field.value === "number" ||
+                              typeof field.value === "string"
+                                ? field.value
+                                : ""
+                            }
+                            onChange={(event) =>
+                              field.onChange(
+                                event.target.value
+                                  ? Number(event.target.value)
+                                  : undefined,
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="customSecure"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between rounded-md border p-3">
+                        <div>
+                          <FormLabel>Use Secure SMTP (SSL/TLS)</FormLabel>
+                          <FormDescription>
+                            Turn on for SMTPS endpoints (usually port 465).
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+
+              <FormField
+                control={form.control}
+                name="fromEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>From Email</FormLabel>
                     <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select provider" />
-                      </SelectTrigger>
+                      <Input placeholder="sender@company.com" {...field} />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="gmail">Gmail</SelectItem>
-                      <SelectItem value="outlook">Outlook</SelectItem>
-                      <SelectItem value="custom">Custom SMTP</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="credentialId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Credential</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={isLoadingCredentials || !credentials?.length}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select SMTP credential" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {credentials?.map((credential) => (
-                        <SelectItem key={credential.id} value={credential.id}>
-                          {credential.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {provider === "custom" && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="customHost"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Custom SMTP Host</FormLabel>
-                      <FormControl>
-                        <Input placeholder="smtp.your-domain.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="customPort"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Custom SMTP Port</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="587"
-                          value={
-                            typeof field.value === "number" ||
-                            typeof field.value === "string"
-                              ? field.value
-                              : ""
-                          }
-                          onChange={(event) =>
-                            field.onChange(
-                              event.target.value
-                                ? Number(event.target.value)
-                                : undefined,
-                            )
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="customSecure"
-                  render={({ field }) => (
-                    <FormItem className="flex items-center justify-between rounded-md border p-3">
-                      <div>
-                        <FormLabel>Use Secure SMTP (SSL/TLS)</FormLabel>
-                        <FormDescription>
-                          Turn on for SMTPS endpoints (usually port 465).
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-
-            <FormField
-              control={form.control}
-              name="fromEmail"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>From Email</FormLabel>
-                  <FormControl>
-                    <Input placeholder="sender@company.com" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    Supports templates like {"{{senderEmail}}"}.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="toEmail"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>To Email</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="user@company.com, {{email}}"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>Comma-separated recipients.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="cc"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>CC</FormLabel>
-                  <FormControl>
-                    <Input placeholder="ops@company.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="bcc"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>BCC</FormLabel>
-                  <FormControl>
-                    <Input placeholder="audit@company.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="subject"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Subject</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Job Update for {{name}}" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="messageBody"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Message Body</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      className="min-h-[120px] font-mono text-sm"
-                      placeholder="Hello {{name}}"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {htmlMode
-                      ? "HTML content enabled."
-                      : "Plain-text content mode."}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="htmlMode"
-              render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <FormLabel>HTML Mode</FormLabel>
                     <FormDescription>
-                      Send Message Body as HTML.
+                      Supports templates like {"{{senderEmail}}"}.
                     </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="attachmentsJson"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Attachments (Optional)</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      className="min-h-[80px] font-mono text-sm"
-                      placeholder='[{"filename":"report.txt","content":"Hello"}]'
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    JSON array compatible with Nodemailer attachments.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="toEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>To Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="user@company.com, {{email}}"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Comma-separated recipients.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <DialogFooter className="gap-2 mt-4 pb-0 shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isTestingConnection}
-                onClick={() => startConnectionTest(runConnectionTest)}
-              >
-                Test Connection
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isSendingTest}
-                onClick={() => startSendTest(runSendTest)}
-              >
-                Send Test Email
-              </Button>
-              <Button type="submit">Save</Button>
-            </DialogFooter>
-          </form>
-        </Form>
+              <FormField
+                control={form.control}
+                name="cc"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CC</FormLabel>
+                    <FormControl>
+                      <Input placeholder="ops@company.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="bcc"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>BCC</FormLabel>
+                    <FormControl>
+                      <Input placeholder="audit@company.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="subject"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Subject</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Job Update for {{name}}" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="messageBody"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Message Body</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="min-h-[120px] font-mono text-sm"
+                        placeholder="Hello {{name}}"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {htmlMode
+                        ? "HTML content enabled."
+                        : "Plain-text content mode."}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="htmlMode"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-md border p-3">
+                    <div>
+                      <FormLabel>HTML Mode</FormLabel>
+                      <FormDescription>
+                        Send Message Body as HTML.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="attachmentsJson"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Attachments (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="min-h-[80px] font-mono text-sm"
+                        placeholder='[{"filename":"report.txt","content":"Hello"}]'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      JSON array compatible with Nodemailer attachments.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter className="gap-2 mt-4 pb-0 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isTestingConnection}
+                  onClick={() => startConnectionTest(runConnectionTest)}
+                >
+                  Test Connection
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSendingTest}
+                  onClick={() => startSendTest(runSendTest)}
+                >
+                  Send Test Email
+                </Button>
+                <Button type="submit">Save</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </div>
       </DialogContent>
     </Dialog>

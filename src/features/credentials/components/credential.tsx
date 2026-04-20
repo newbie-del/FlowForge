@@ -170,6 +170,11 @@ const credentialTypeOptions = [
     label: "Google Sheets",
     logo: "/logos/googlesheets.svg",
   },
+  {
+    value: CredentialType.TELEGRAM_BOT,
+    label: "Telegram Bot",
+    logo: "/logos/telegram.svg",
+  },
 ];
 
 interface CredentialFormProps {
@@ -321,6 +326,7 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
   const selectedType = form.watch("type");
   const isSmtpType = selectedType === CredentialType.SMTP;
   const isGoogleSheetsType = selectedType === CredentialType.GOOGLE_SHEETS;
+  const isTelegramType = selectedType === CredentialType.TELEGRAM_BOT;
   const googleAuthType = form.watch("googleAuthType");
 
   return (
@@ -397,11 +403,17 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                   name="value"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>API Key</FormLabel>
+                      <FormLabel>
+                        {isTelegramType ? "Bot Token" : "API Key"}
+                      </FormLabel>
                       <FormControl>
                         <Input
                           type="password"
-                          placeholder="sk-..."
+                          placeholder={
+                            isTelegramType
+                              ? "123456789:ABCdefGHIjklmnoPQRstuvWXYZ..."
+                              : "sk-..."
+                          }
                           {...field}
                         />
                       </FormControl>
@@ -761,6 +773,50 @@ export const CredentialForm = ({ initialData }: CredentialFormProps) => {
                   )}
                 </>
               ) : null}
+
+              {isTelegramType && (
+                <div className="rounded-md border bg-muted/30 p-4 text-sm">
+                  <p className="font-medium">Quick setup: Telegram Bot</p>
+                  <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
+                    <li>
+                      Open Telegram and search for{" "}
+                      <span className="font-mono text-xs">@BotFather</span>.
+                    </li>
+                    <li>
+                      Send <span className="font-mono text-xs">/newbot</span>{" "}
+                      and follow the steps.
+                    </li>
+                    <li>
+                      Choose a name (displayed to users) and username (must end
+                      with "bot").
+                    </li>
+                    <li>
+                      Copy the API token provided by BotFather (e.g.,{" "}
+                      <span className="font-mono text-xs">
+                        123456789:ABCdefGHIjklmnoPQRstuvWXYZ...
+                      </span>
+                      ).
+                    </li>
+                    <li>Paste it above as Bot Token.</li>
+                    <li>
+                      To get your Chat ID, send any message to your bot, then
+                      visit{" "}
+                      <span className="font-mono text-xs">
+                        https://api.telegram.org/bot&lt;YOUR_TOKEN&gt;/getUpdates
+                      </span>{" "}
+                      in your browser.
+                    </li>
+                  </ol>
+                  <a
+                    className="mt-3 inline-block text-xs text-primary underline underline-offset-2"
+                    href="https://telegram.org/blog/bot-revolution"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Learn more about Telegram Bots
+                  </a>
+                </div>
+              )}
 
               <div className="flex gap-4">
                 <Button

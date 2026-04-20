@@ -1,15 +1,15 @@
-import { auth } from '@/lib/auth';
-import { polarClient } from '@/lib/polar';
-import { initTRPC, TRPCError } from '@trpc/server';
-import { headers } from 'next/headers';
-import { cache } from 'react';
-import superjson from 'superjson';
+import { initTRPC, TRPCError } from "@trpc/server";
+import { headers } from "next/headers";
+import { cache } from "react";
+import superjson from "superjson";
+import { auth } from "@/lib/auth";
+import { polarClient } from "@/lib/polar";
 
 export const createTRPCContext = cache(async () => {
   /**
    * @see: https://trpc.io/docs/server/context
    */
-  return { userId: 'user_123' };
+  return { userId: "user_123" };
 });
 
 // Avoid exporting the entire t-object
@@ -35,8 +35,8 @@ export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
 
   if (!session) {
     throw new TRPCError({
-      code: 'UNAUTHORIZED',
-      message: 'Unauthorized',
+      code: "UNAUTHORIZED",
+      message: "Unauthorized",
     });
   }
 
@@ -47,20 +47,21 @@ export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
     },
   });
 });
-export const premiumProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  const customer = await polarClient.customers.getStateExternal({
-    externalId: ctx.auth.user.id,
-  });
-
-  if (
-    !customer.activeSubscriptions ||
-    customer.activeSubscriptions.length === 0 
-  ) {
-    throw new TRPCError({
-      code: 'FORBIDDEN',
-      message: "Active subscription required",
+export const premiumProcedure = protectedProcedure.use(
+  async ({ ctx, next }) => {
+    const customer = await polarClient.customers.getStateExternal({
+      externalId: ctx.auth.user.id,
     });
-  }
-  return next ({ ctx: {...ctx, customer}});
+
+    if (
+      !customer.activeSubscriptions ||
+      customer.activeSubscriptions.length === 0
+    ) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Active subscription required",
+      });
+    }
+    return next({ ctx: { ...ctx, customer } });
   },
 );
