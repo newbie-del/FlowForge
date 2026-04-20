@@ -20,6 +20,31 @@ export const nodeInputSchemas: Record<NodeType, z.ZodSchema> = {
 
   [NodeType.MANUAL_TRIGGER]: z.object({}).strict(),
 
+  [NodeType.SCHEDULE_TRIGGER]: z
+    .object({
+      mode: z
+        .enum([
+          "every_minutes",
+          "hourly",
+          "daily",
+          "weekly",
+          "monthly",
+          "weekdays_only",
+          "custom_cron",
+        ])
+        .optional(),
+      interval: z.number().int().positive().optional(),
+      time: z.string().optional(),
+      timezone: z.string().optional(),
+      daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
+      dayOfMonth: z.number().int().min(1).max(31).optional(),
+      cronExpression: z.string().optional(),
+      enabled: z.boolean().optional(),
+      runImmediately: z.boolean().optional(),
+      runMissedOnRestart: z.boolean().optional(),
+    })
+    .strict(),
+
   [NodeType.GOOGLE_FORM_TRIGGER]: z
     .object({
       formId: z.string().optional(),
@@ -178,8 +203,20 @@ export const nodeOutputSchemas: Record<NodeType, NodeOutput> = {
     example: { timestamp: "2024-01-01T00:00:00Z", userId: "user123" },
   },
 
+  [NodeType.SCHEDULE_TRIGGER]: {
+    variableName: "schedule",
+    structure:
+      '{ "triggerType": "schedule", "runAt": ISO8601, "timezone": string, "scheduleMode": string }',
+    example: {
+      triggerType: "schedule",
+      runAt: "2024-01-01T09:00:00Z",
+      timezone: "UTC",
+      scheduleMode: "daily",
+    },
+  },
+
   [NodeType.GOOGLE_FORM_TRIGGER]: {
-    variableName: "formResponse",
+    variableName: "googleForm",
     structure: '{ "responses": Record<string, string>, "timestamp": ISO8601 }',
     example: {
       responses: { field1: "value1" },
@@ -188,9 +225,9 @@ export const nodeOutputSchemas: Record<NodeType, NodeOutput> = {
   },
 
   [NodeType.STRIPE_TRIGGER]: {
-    variableName: "stripeEvent",
-    structure: '{ "type": string, "data": object, "id": string }',
-    example: { type: "charge.succeeded", data: {}, id: "evt_123" },
+    variableName: "stripe",
+    structure: '{ "eventType": string, "raw": object, "eventId": string }',
+    example: { eventType: "charge.succeeded", raw: {}, eventId: "evt_123" },
   },
 
   [NodeType.HTTP_REQUEST]: {
@@ -365,6 +402,29 @@ export const nodeRequirements: Record<NodeType, NodeRequirement[]> = {
   [NodeType.INITIAL]: [],
 
   [NodeType.MANUAL_TRIGGER]: [],
+
+  [NodeType.SCHEDULE_TRIGGER]: [
+    {
+      field: "mode",
+      required: true,
+      type: "enum",
+      canUseTemplate: false,
+      examples: [
+        "every_minutes",
+        "hourly",
+        "daily",
+        "weekly",
+        "monthly",
+        "custom_cron",
+      ],
+    },
+    {
+      field: "timezone",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+  ],
 
   [NodeType.GOOGLE_FORM_TRIGGER]: [
     { field: "formId", required: true, type: "string", canUseTemplate: false },
