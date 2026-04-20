@@ -108,7 +108,7 @@ export const emailExecutor: NodeExecutor<EmailData> = async ({
     return failure("Credential is required.");
   }
 
-  const credential = await step.run("get-email-credential", async () => {
+  const credential = await step.run(`get-email-credential-${nodeId}`, async () => {
     return prisma.credential.findUnique({
       where: {
         id: data.credentialId,
@@ -172,7 +172,7 @@ export const emailExecutor: NodeExecutor<EmailData> = async ({
   }
 
   try {
-    const result = await step.run("send-email", async () => {
+    const result = await step.run(`send-email-${nodeId}`, async () => {
       const { transporter } = buildSmtpTransporter({
         encryptedCredentialValue: credential.value,
         provider,

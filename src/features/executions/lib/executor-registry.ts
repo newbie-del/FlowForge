@@ -10,7 +10,11 @@ import { geminiExecutor } from "../components/gemini/executor";
 import { googleSheetsExecutor } from "../components/google-sheets/executor";
 import { httpRequestExecutor } from "../components/http-request/executor";
 import { ifNodeExecutor } from "../components/if/executor";
+import { codeExecutor } from "../components/code/executor";
+import { loopOverItemsExecutor } from "../components/loop-over-items/executor";
+import { mergeExecutor } from "../components/merge/executor";
 import { openAiExecutor } from "../components/openai/executor";
+import { setExecutor } from "../components/set/executor";
 import { slackExecutor } from "../components/slack/executor";
 import { telegramExecutor } from "../components/telegram/executor";
 import { waitNodeExecutor } from "../components/wait/executor";
@@ -22,6 +26,10 @@ export const executorRegistry: Record<NodeType, NodeExecutor> = {
   [NodeType.SCHEDULE_TRIGGER]: scheduleTriggerExecutor,
   [NodeType.IF]: ifNodeExecutor,
   [NodeType.WAIT]: waitNodeExecutor,
+  [NodeType.SET]: setExecutor,
+  [NodeType.MERGE]: mergeExecutor,
+  [NodeType.LOOP_OVER_ITEMS]: loopOverItemsExecutor,
+  [NodeType.CODE]: codeExecutor,
   [NodeType.HTTP_REQUEST]: httpRequestExecutor,
   [NodeType.GOOGLE_FORM_TRIGGER]: googleFormTriggerExecutor,
   [NodeType.STRIPE_TRIGGER]: stripeTriggerExecutor,

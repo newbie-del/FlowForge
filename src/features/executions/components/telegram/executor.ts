@@ -348,15 +348,18 @@ export const telegramExecutor: NodeExecutor<TelegramData> = async ({
       return failure("Chat ID must be numeric or start with @.");
     }
 
-    const credential = await step.run("get-telegram-credential", async () => {
-      return prisma.credential.findUnique({
-        where: {
-          id: data.credentialId,
-          userId,
-          type: CredentialType.TELEGRAM_BOT,
-        },
-      });
-    });
+    const credential = await step.run(
+      `get-telegram-credential-${nodeId}`,
+      async () => {
+        return prisma.credential.findUnique({
+          where: {
+            id: data.credentialId,
+            userId,
+            type: CredentialType.TELEGRAM_BOT,
+          },
+        });
+      },
+    );
 
     if (!credential) {
       return failure("Telegram credential not found or incorrect type.");
@@ -367,7 +370,7 @@ export const telegramExecutor: NodeExecutor<TelegramData> = async ({
       ? resolveTemplate(data.message, context)
       : undefined;
 
-    const result = await step.run("send-telegram", async () => {
+    const result = await step.run(`send-telegram-${nodeId}`, async () => {
       if (operation === "send_message") {
         if (!resolvedMessage?.trim()) {
           throw new NonRetriableError("Message is required for send_message.");

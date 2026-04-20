@@ -151,6 +151,18 @@ TRIGGERS (start workflows):
 - STRIPE_TRIGGER: Triggered on Stripe event. Outputs: stripe = { eventType, raw, eventId }
 
 ACTIONS (do things):
+- SET: Add/update fields in payload. Supports nested keys and expressions.
+  Fields: fields[{name,value,type}], keepOnlySetFields, includePreviousData, useExpressions
+
+- MERGE: Combine two datasets into one output.
+  Fields: mode, inputAPath, inputBPath, keyField, conflictStrategy, outputVariableName
+
+- LOOP_OVER_ITEMS: Iterate over array data.
+  Fields: mode (sequential|parallel|batch), itemsPath, batchSize, maxItems, delayBetweenItemsMs, continueOnItemError
+
+- CODE: Execute sandboxed JavaScript.
+  Fields: variableName, code, timeoutMs
+
 - IF: Branch workflow into TRUE/FALSE paths using conditions.
   Fields: conditions[{leftValue, operator, rightValue}], combineOperation (all|any), caseSensitive
   Connections: use fromOutput="if-true" for TRUE branch and fromOutput="if-false" for FALSE branch
@@ -233,6 +245,14 @@ function getNodeTitle(type: NodeType) {
       return "IF";
     case NodeType.WAIT:
       return "Wait";
+    case NodeType.SET:
+      return "Set";
+    case NodeType.MERGE:
+      return "Merge";
+    case NodeType.LOOP_OVER_ITEMS:
+      return "Loop Over Items";
+    case NodeType.CODE:
+      return "Code";
     case NodeType.GOOGLE_FORM_TRIGGER:
       return "Google Form Trigger";
     case NodeType.STRIPE_TRIGGER:
@@ -320,6 +340,61 @@ function ensureNodeDefaults(node: AiWorkflowPlan["nodes"][number]) {
                   .slice(0, 16),
           timezone: String(data.timezone ?? "UTC"),
           continueInTestMode: Boolean(data.continueInTestMode ?? true),
+        },
+      };
+    case NodeType.SET:
+      return {
+        ...node,
+        data: {
+          fields: Array.isArray(data.fields)
+            ? data.fields
+            : [{ name: "status", value: "approved", type: "text" }],
+          keepOnlySetFields: Boolean(data.keepOnlySetFields ?? false),
+          includePreviousData: Boolean(data.includePreviousData ?? true),
+          useExpressions: Boolean(data.useExpressions ?? true),
+        },
+      };
+    case NodeType.MERGE:
+      return {
+        ...node,
+        data: {
+          mode: String(data.mode ?? "combine_objects"),
+          keyField: String(data.keyField ?? ""),
+          conflictStrategy: String(data.conflictStrategy ?? "prefer_b"),
+          inputAPath: String(data.inputAPath ?? ""),
+          inputBPath: String(data.inputBPath ?? ""),
+          outputVariableName: String(data.outputVariableName ?? "merged"),
+        },
+      };
+    case NodeType.LOOP_OVER_ITEMS:
+      return {
+        ...node,
+        data: {
+          mode: String(data.mode ?? "sequential"),
+          itemsPath: String(data.itemsPath ?? ""),
+          batchSize: typeof data.batchSize === "number" ? data.batchSize : 10,
+          maxItems:
+            typeof data.maxItems === "number" ? data.maxItems : undefined,
+          delayBetweenItemsMs:
+            typeof data.delayBetweenItemsMs === "number"
+              ? data.delayBetweenItemsMs
+              : 0,
+          continueOnItemError: Boolean(data.continueOnItemError ?? false),
+          itemVariableName: String(data.itemVariableName ?? "item"),
+          outputVariableName: String(data.outputVariableName ?? "loop"),
+        },
+      };
+    case NodeType.CODE:
+      return {
+        ...node,
+        data: {
+          variableName: String(data.variableName ?? "codeResult"),
+          timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : 3000,
+          template: String(data.template ?? "filter_items"),
+          code:
+            typeof data.code === "string" && data.code.trim()
+              ? data.code
+              : 'return items.filter((item) => String(item?.title ?? "").includes("React"));',
         },
       };
     case NodeType.HTTP_REQUEST:
@@ -628,7 +703,7 @@ Return ONLY valid JSON matching the schema. No markdown, no explanation.
 ${enhancedNodeCatalog}
 
 CRITICAL REQUIREMENTS:
-1) Use ONLY NodeType values: MANUAL_TRIGGER, SCHEDULE_TRIGGER, GOOGLE_FORM_TRIGGER, STRIPE_TRIGGER, IF, WAIT, HTTP_REQUEST, GOOGLE_SHEETS, EMAIL, DISCORD, SLACK, TELEGRAM, OPENAI, GEMINI, ANTHROPIC
+1) Use ONLY NodeType values: MANUAL_TRIGGER, SCHEDULE_TRIGGER, GOOGLE_FORM_TRIGGER, STRIPE_TRIGGER, IF, WAIT, SET, MERGE, LOOP_OVER_ITEMS, CODE, HTTP_REQUEST, GOOGLE_SHEETS, EMAIL, DISCORD, SLACK, TELEGRAM, OPENAI, GEMINI, ANTHROPIC
 2) EVERY node must have ALL required fields set
 3) Variable names in templates MUST match exact variable names from previous nodes
 4) Check: if HTTP_REQUEST outputs "jobsList", then use {{jobsList.httpResponse.data}} NOT {{httpData}}
@@ -647,6 +722,10 @@ CRITICAL REQUIREMENTS:
    - otherwise -> operation=send_message
 13) IF INTENT ROUTING: for prompts mentioning condition/if/only when, include IF node and use branch handles "if-true"/"if-false"
 14) WAIT INTENT ROUTING: for prompts mentioning wait/delay/pause/retry after, include WAIT node with proper wait mode
+15) SET INTENT ROUTING: for prompts mentioning set field/add field/modify data, include SET node
+16) MERGE INTENT ROUTING: for prompts mentioning merge/combine branches/combine outputs, include MERGE node
+17) LOOP INTENT ROUTING: for prompts mentioning for each/loop/process each item, include LOOP_OVER_ITEMS node
+18) CODE INTENT ROUTING: for prompts mentioning javascript/js/custom logic, include CODE node
 
 TEMPLATE VARIABLE REFERENCE:
 - {{httpVariable.httpResponse.data}} for HTTP node outputs
@@ -1029,6 +1108,7 @@ function detectTransformationNeeds(
   const hasEmail = nodes.some((n) => n.type === NodeType.EMAIL);
   const hasSheets = nodes.some((n) => n.type === NodeType.GOOGLE_SHEETS);
   const hasTelegram = nodes.some((n) => n.type === NodeType.TELEGRAM);
+  const hasLoop = nodes.some((n) => n.type === NodeType.LOOP_OVER_ITEMS);
 
   const promptLower = prompt.toLowerCase();
 
@@ -1046,6 +1126,17 @@ function detectTransformationNeeds(
     );
     hints.push(
       "Example: Add OPENAI/GEMINI node with userPrompt='Extract top 10 {{results}} and format for {{nextNode}}'",
+    );
+  }
+
+  if (
+    (promptLower.includes("for each") ||
+      promptLower.includes("loop") ||
+      promptLower.includes("each item")) &&
+    !hasLoop
+  ) {
+    hints.push(
+      "TRANSFORMATION_HINT: User requested iteration. Add LOOP_OVER_ITEMS before per-item processing nodes.",
     );
   }
 
@@ -1424,6 +1515,42 @@ function computeMissingInputs(plan: AiWorkflowPlan) {
     }
 
     if (
+      node.type === NodeType.LOOP_OVER_ITEMS &&
+      !String(node.data.itemsPath ?? "").trim()
+    ) {
+      push({
+        nodeId: node.id,
+        field: "itemsPath",
+        question: "Which array should this loop iterate over?",
+        whyItMatters:
+          "Loop node can only run when itemsPath resolves to an array.",
+        example: "{{jobsList.httpResponse.data}}",
+      });
+    }
+
+    if (
+      node.type === NodeType.MERGE &&
+      !String(node.data.inputBPath ?? "").trim()
+    ) {
+      push({
+        nodeId: node.id,
+        field: "inputBPath",
+        question: "What should be used as Merge input B?",
+        whyItMatters: "Merge requires two inputs to combine branch data.",
+      });
+    }
+
+    if (node.type === NodeType.CODE && !String(node.data.code ?? "").trim()) {
+      push({
+        nodeId: node.id,
+        field: "code",
+        question: "What JavaScript should run in this Code node?",
+        whyItMatters: "Code node cannot execute without script content.",
+        example: "return items.filter((item) => item.title.includes('React'));",
+      });
+    }
+
+    if (
       node.type === NodeType.GOOGLE_SHEETS &&
       !String(node.data.spreadsheetId ?? "").trim()
     ) {
@@ -1664,6 +1791,89 @@ function buildFallbackPlan(params: {
           .slice(0, 16),
         timezone: "UTC",
         continueInTestMode: true,
+      },
+    });
+  }
+
+  if (
+    normalizedPrompt.includes("for each") ||
+    normalizedPrompt.includes("loop") ||
+    normalizedPrompt.includes("each item")
+  ) {
+    pushNode({
+      id: makeId("loop"),
+      type: NodeType.LOOP_OVER_ITEMS,
+      title: "Loop Over Items",
+      description: "Iterate over list items",
+      data: {
+        mode: "sequential",
+        itemsPath: "{{data.httpResponse.data}}",
+        batchSize: 10,
+        delayBetweenItemsMs: 0,
+        maxItems: undefined,
+        continueOnItemError: false,
+        itemVariableName: "item",
+        outputVariableName: "loop",
+      },
+    });
+  }
+
+  if (
+    normalizedPrompt.includes("custom logic") ||
+    normalizedPrompt.includes("javascript") ||
+    normalizedPrompt.includes("js ") ||
+    normalizedPrompt.includes("code ")
+  ) {
+    pushNode({
+      id: makeId("code"),
+      type: NodeType.CODE,
+      title: "Code",
+      description: "Run custom JavaScript",
+      data: {
+        variableName: "codeResult",
+        timeoutMs: 3000,
+        template: "filter_items",
+        code: 'return items.filter((item) => String(item?.title ?? "").includes("React"));',
+      },
+    });
+  }
+
+  if (
+    normalizedPrompt.includes("set field") ||
+    normalizedPrompt.includes("add field") ||
+    normalizedPrompt.includes("modify data")
+  ) {
+    pushNode({
+      id: makeId("set"),
+      type: NodeType.SET,
+      title: "Set",
+      description: "Set additional fields",
+      data: {
+        fields: [{ name: "status", value: "approved", type: "text" }],
+        keepOnlySetFields: false,
+        includePreviousData: true,
+        useExpressions: true,
+      },
+    });
+  }
+
+  if (
+    normalizedPrompt.includes("merge") ||
+    normalizedPrompt.includes("combine branches") ||
+    normalizedPrompt.includes("combine outputs")
+  ) {
+    pushNode({
+      id: makeId("merge"),
+      type: NodeType.MERGE,
+      title: "Merge",
+      description: "Merge branch outputs",
+      data: {
+        mode: "combine_objects",
+        keyField: "",
+        conflictStrategy: "prefer_b",
+        inputAPath: "sourceA",
+        inputBPath: "sourceB",
+        outputVariableName: "merged",
       },
     });
   }
