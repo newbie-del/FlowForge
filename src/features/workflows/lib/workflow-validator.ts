@@ -219,6 +219,12 @@ export class WorkflowValidator {
       case NodeType.SCHEDULE_TRIGGER:
         this.validateScheduleNode(node);
         break;
+      case NodeType.IF:
+        this.validateIfNode(node);
+        break;
+      case NodeType.WAIT:
+        this.validateWaitNode(node);
+        break;
     }
   }
 
@@ -274,6 +280,111 @@ export class WorkflowValidator {
         node.id,
         "method",
         `Invalid HTTP method: ${method}`,
+      );
+    }
+  }
+
+  private validateIfNode(node: AiWorkflowNode): void {
+    const conditionsRaw = Array.isArray(node.data.conditions)
+      ? node.data.conditions
+      : [];
+
+    if (conditionsRaw.length === 0) {
+      const hasLegacyCondition =
+        String(node.data.leftValue ?? "").trim().length > 0 &&
+        String(node.data.operator ?? "").trim().length > 0;
+      if (!hasLegacyCondition) {
+        this.addError(
+          "error",
+          node.id,
+          "conditions",
+          "IF node requires at least one condition",
+        );
+      }
+      return;
+    }
+
+    for (let index = 0; index < conditionsRaw.length; index += 1) {
+      const condition = conditionsRaw[index];
+      if (!condition || typeof condition !== "object") {
+        this.addError(
+          "error",
+          node.id,
+          `conditions.${index}`,
+          "Condition entry is invalid",
+        );
+        continue;
+      }
+
+      const conditionRecord = condition as Record<string, unknown>;
+      const leftValue = String(conditionRecord.leftValue ?? "").trim();
+      const operator = String(conditionRecord.operator ?? "").trim();
+
+      if (!leftValue) {
+        this.addError(
+          "error",
+          node.id,
+          `conditions.${index}.leftValue`,
+          "Condition leftValue is required",
+        );
+      }
+      if (!operator) {
+        this.addError(
+          "error",
+          node.id,
+          `conditions.${index}.operator`,
+          "Condition operator is required",
+        );
+      }
+    }
+  }
+
+  private validateWaitNode(node: AiWorkflowNode): void {
+    const mode = String(node.data.mode ?? "seconds");
+    const validModes = new Set([
+      "seconds",
+      "minutes",
+      "hours",
+      "until_time",
+      "until_datetime",
+    ]);
+    if (!validModes.has(mode)) {
+      this.addError("error", node.id, "mode", `Invalid wait mode: ${mode}`);
+      return;
+    }
+
+    const timezone = String(node.data.timezone ?? "UTC").trim();
+    if (!timezone) {
+      this.addError("error", node.id, "timezone", "Wait timezone is required");
+    }
+
+    if (mode === "seconds" || mode === "minutes" || mode === "hours") {
+      const durationRaw = Number(node.data.duration ?? 0);
+      if (!Number.isFinite(durationRaw) || durationRaw <= 0) {
+        this.addError(
+          "error",
+          node.id,
+          "duration",
+          "Wait duration must be greater than zero",
+        );
+      }
+    }
+
+    if (mode === "until_time" && !String(node.data.time ?? "").trim()) {
+      this.addError(
+        "error",
+        node.id,
+        "time",
+        "Wait mode 'until_time' requires time",
+      );
+    }
+
+    if (mode === "until_datetime" && !String(node.data.dateTime ?? "").trim()) {
+      this.addError(
+        "error",
+        node.id,
+        "dateTime",
+        "Wait mode 'until_datetime' requires dateTime",
       );
     }
   }

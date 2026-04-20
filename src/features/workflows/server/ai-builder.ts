@@ -54,6 +54,33 @@ function hasScheduleIntent(prompt: string) {
   return scheduleKeywords.some((keyword) => lower.includes(keyword));
 }
 
+const conditionalKeywords = [
+  "if",
+  "condition",
+  "only when",
+  "check status",
+  "filter approved",
+];
+
+function hasConditionalIntent(prompt: string) {
+  const lower = prompt.toLowerCase();
+  return conditionalKeywords.some((keyword) => lower.includes(keyword));
+}
+
+const waitKeywords = [
+  "after 5 mins",
+  "wait",
+  "delay",
+  "pause",
+  "remind later",
+  "retry after",
+];
+
+function hasWaitIntent(prompt: string) {
+  const lower = prompt.toLowerCase();
+  return waitKeywords.some((keyword) => lower.includes(keyword));
+}
+
 const telegramKeywords = [
   "telegram",
   "tg",
@@ -124,6 +151,13 @@ TRIGGERS (start workflows):
 - STRIPE_TRIGGER: Triggered on Stripe event. Outputs: stripe = { eventType, raw, eventId }
 
 ACTIONS (do things):
+- IF: Branch workflow into TRUE/FALSE paths using conditions.
+  Fields: conditions[{leftValue, operator, rightValue}], combineOperation (all|any), caseSensitive
+  Connections: use fromOutput="if-true" for TRUE branch and fromOutput="if-false" for FALSE branch
+
+- WAIT: Pause workflow execution for fixed duration or until target time.
+  Fields: mode (seconds|minutes|hours|until_time|until_datetime), duration, time, dateTime, timezone, continueInTestMode
+
 - HTTP_REQUEST: Make API/webhook calls. Output variable name is customizable.
   Outputs: {[variableName]: { httpResponse: { status, statusText, data } }}
   Fields: endpoint (URL), method (GET|POST|PUT|PATCH|DELETE), body (JSON string for POST/PUT/PATCH)
@@ -195,6 +229,10 @@ function getNodeTitle(type: NodeType) {
       return "Manual Trigger";
     case NodeType.SCHEDULE_TRIGGER:
       return "Schedule Trigger";
+    case NodeType.IF:
+      return "IF";
+    case NodeType.WAIT:
+      return "Wait";
     case NodeType.GOOGLE_FORM_TRIGGER:
       return "Google Form Trigger";
     case NodeType.STRIPE_TRIGGER:
@@ -245,6 +283,43 @@ function ensureNodeDefaults(node: AiWorkflowPlan["nodes"][number]) {
           enabled: data.enabled !== false,
           runImmediately: Boolean(data.runImmediately ?? false),
           runMissedOnRestart: Boolean(data.runMissedOnRestart ?? false),
+        },
+      };
+    case NodeType.IF:
+      return {
+        ...node,
+        data: {
+          combineOperation: data.combineOperation === "any" ? "any" : "all",
+          caseSensitive: Boolean(data.caseSensitive ?? false),
+          conditions: Array.isArray(data.conditions)
+            ? data.conditions
+            : [
+                {
+                  leftValue: String(data.leftValue ?? "{{status}}"),
+                  operator: String(data.operator ?? "equals"),
+                  rightValue: String(data.rightValue ?? "Approved"),
+                },
+              ],
+          leftValue: String(data.leftValue ?? "{{status}}"),
+          operator: String(data.operator ?? "equals"),
+          rightValue: String(data.rightValue ?? "Approved"),
+        },
+      };
+    case NodeType.WAIT:
+      return {
+        ...node,
+        data: {
+          mode: String(data.mode ?? "seconds"),
+          duration: typeof data.duration === "number" ? data.duration : 30,
+          time: String(data.time ?? "09:00"),
+          dateTime:
+            typeof data.dateTime === "string"
+              ? data.dateTime
+              : new Date(Date.now() + 10 * 60 * 1000)
+                  .toISOString()
+                  .slice(0, 16),
+          timezone: String(data.timezone ?? "UTC"),
+          continueInTestMode: Boolean(data.continueInTestMode ?? true),
         },
       };
     case NodeType.HTTP_REQUEST:
@@ -553,7 +628,7 @@ Return ONLY valid JSON matching the schema. No markdown, no explanation.
 ${enhancedNodeCatalog}
 
 CRITICAL REQUIREMENTS:
-1) Use ONLY NodeType values: MANUAL_TRIGGER, SCHEDULE_TRIGGER, GOOGLE_FORM_TRIGGER, STRIPE_TRIGGER, HTTP_REQUEST, GOOGLE_SHEETS, EMAIL, DISCORD, SLACK, TELEGRAM, OPENAI, GEMINI, ANTHROPIC
+1) Use ONLY NodeType values: MANUAL_TRIGGER, SCHEDULE_TRIGGER, GOOGLE_FORM_TRIGGER, STRIPE_TRIGGER, IF, WAIT, HTTP_REQUEST, GOOGLE_SHEETS, EMAIL, DISCORD, SLACK, TELEGRAM, OPENAI, GEMINI, ANTHROPIC
 2) EVERY node must have ALL required fields set
 3) Variable names in templates MUST match exact variable names from previous nodes
 4) Check: if HTTP_REQUEST outputs "jobsList", then use {{jobsList.httpResponse.data}} NOT {{httpData}}
@@ -570,6 +645,8 @@ CRITICAL REQUIREMENTS:
    - "pdf/document/file/report" -> operation=send_document
    - "image/photo/screenshot/picture" -> operation=send_photo
    - otherwise -> operation=send_message
+13) IF INTENT ROUTING: for prompts mentioning condition/if/only when, include IF node and use branch handles "if-true"/"if-false"
+14) WAIT INTENT ROUTING: for prompts mentioning wait/delay/pause/retry after, include WAIT node with proper wait mode
 
 TEMPLATE VARIABLE REFERENCE:
 - {{httpVariable.httpResponse.data}} for HTTP node outputs
@@ -681,7 +758,7 @@ function ensureConnections(plan: AiWorkflowPlan) {
   const fallbackConnections = plan.nodes.slice(0, -1).map((node, index) => ({
     from: node.id,
     to: plan.nodes[index + 1]?.id ?? node.id,
-    fromOutput: "source-1",
+    fromOutput: node.type === NodeType.IF ? "if-true" : "source-1",
     toInput: "target-1",
   }));
 
@@ -1385,6 +1462,59 @@ function computeMissingInputs(plan: AiWorkflowPlan) {
         example: "New form response received: {{googleForm.responses.Name}}",
       });
     }
+
+    if (
+      node.type === NodeType.IF &&
+      !Array.isArray(node.data.conditions) &&
+      !String(node.data.leftValue ?? "").trim()
+    ) {
+      push({
+        nodeId: node.id,
+        field: "conditions",
+        question: "What condition should control the IF branch?",
+        whyItMatters:
+          "IF node needs at least one condition to route to TRUE/FALSE output.",
+        example: "{{status}} equals Approved",
+      });
+    }
+
+    if (node.type === NodeType.WAIT) {
+      const mode = String(node.data.mode ?? "seconds");
+      if (
+        (mode === "seconds" || mode === "minutes" || mode === "hours") &&
+        Number(node.data.duration ?? 0) <= 0
+      ) {
+        push({
+          nodeId: node.id,
+          field: "duration",
+          question: "How long should the workflow wait?",
+          whyItMatters:
+            "Wait node requires positive duration in duration-based modes.",
+          example: "5",
+        });
+      }
+      if (mode === "until_time" && !String(node.data.time ?? "").trim()) {
+        push({
+          nodeId: node.id,
+          field: "time",
+          question: "At what time should the workflow continue?",
+          whyItMatters: "Until Specific Time mode requires HH:mm time.",
+          example: "09:00",
+        });
+      }
+      if (
+        mode === "until_datetime" &&
+        !String(node.data.dateTime ?? "").trim()
+      ) {
+        push({
+          nodeId: node.id,
+          field: "dateTime",
+          question: "What exact date/time should resume execution?",
+          whyItMatters: "Until DateTime mode requires a future date and time.",
+          example: "2026-04-22T09:30",
+        });
+      }
+    }
   }
 
   return questions;
@@ -1492,6 +1622,48 @@ function buildFallbackPlan(params: {
           "You are a helpful assistant that processes workflow data.",
         userPrompt:
           "Process this data and provide the required output in a concise format.",
+      },
+    });
+  }
+
+  if (hasConditionalIntent(normalizedPrompt)) {
+    pushNode({
+      id: makeId("if"),
+      type: NodeType.IF,
+      title: "IF",
+      description: "Branch based on condition checks",
+      data: {
+        combineOperation: "all",
+        caseSensitive: false,
+        conditions: [
+          {
+            leftValue: "{{status}}",
+            operator: "equals",
+            rightValue: "Approved",
+          },
+        ],
+        leftValue: "{{status}}",
+        operator: "equals",
+        rightValue: "Approved",
+      },
+    });
+  }
+
+  if (hasWaitIntent(normalizedPrompt)) {
+    pushNode({
+      id: makeId("wait"),
+      type: NodeType.WAIT,
+      title: "Wait",
+      description: "Pause before continuing",
+      data: {
+        mode: "minutes",
+        duration: 5,
+        time: "09:00",
+        dateTime: new Date(Date.now() + 10 * 60 * 1000)
+          .toISOString()
+          .slice(0, 16),
+        timezone: "UTC",
+        continueInTestMode: true,
       },
     });
   }
@@ -1638,7 +1810,7 @@ function buildFallbackPlan(params: {
     .map((node, index) => ({
       from: node.id,
       to: nodes[index + 1]?.id ?? node.id,
-      fromOutput: "source-1",
+      fromOutput: node.type === NodeType.IF ? "if-true" : "source-1",
       toInput: "target-1",
     }));
 

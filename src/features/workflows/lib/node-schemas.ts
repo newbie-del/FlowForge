@@ -45,6 +45,53 @@ export const nodeInputSchemas: Record<NodeType, z.ZodSchema> = {
     })
     .strict(),
 
+  [NodeType.IF]: z
+    .object({
+      combineOperation: z.enum(["all", "any"]).optional(),
+      caseSensitive: z.boolean().optional(),
+      conditions: z
+        .array(
+          z.object({
+            leftValue: z.string().min(1),
+            operator: z.enum([
+              "equals",
+              "not_equals",
+              "contains",
+              "not_contains",
+              "starts_with",
+              "ends_with",
+              "greater_than",
+              "less_than",
+              "greater_or_equal",
+              "less_or_equal",
+              "is_empty",
+              "is_not_empty",
+              "exists",
+              "not_exists",
+            ]),
+            rightValue: z.string().optional(),
+          }),
+        )
+        .optional(),
+      leftValue: z.string().optional(),
+      operator: z.string().optional(),
+      rightValue: z.string().optional(),
+    })
+    .strict(),
+
+  [NodeType.WAIT]: z
+    .object({
+      mode: z
+        .enum(["seconds", "minutes", "hours", "until_time", "until_datetime"])
+        .optional(),
+      duration: z.number().positive().optional(),
+      time: z.string().optional(),
+      dateTime: z.string().optional(),
+      timezone: z.string().optional(),
+      continueInTestMode: z.boolean().optional(),
+    })
+    .strict(),
+
   [NodeType.GOOGLE_FORM_TRIGGER]: z
     .object({
       formId: z.string().optional(),
@@ -213,6 +260,18 @@ export const nodeOutputSchemas: Record<NodeType, NodeOutput> = {
       timezone: "UTC",
       scheduleMode: "daily",
     },
+  },
+
+  [NodeType.IF]: {
+    variableName: "",
+    structure: '{ "branch": "if-true" | "if-false" }',
+    example: { branch: "if-true" },
+  },
+
+  [NodeType.WAIT]: {
+    variableName: "",
+    structure: "{}",
+    example: {},
   },
 
   [NodeType.GOOGLE_FORM_TRIGGER]: {
@@ -421,6 +480,38 @@ export const nodeRequirements: Record<NodeType, NodeRequirement[]> = {
     {
       field: "timezone",
       required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+  ],
+
+  [NodeType.IF]: [
+    {
+      field: "conditions",
+      required: true,
+      type: "json",
+      canUseTemplate: false,
+    },
+    {
+      field: "combineOperation",
+      required: true,
+      type: "enum",
+      canUseTemplate: false,
+      examples: ["all", "any"],
+    },
+  ],
+
+  [NodeType.WAIT]: [
+    {
+      field: "mode",
+      required: true,
+      type: "enum",
+      canUseTemplate: false,
+      examples: ["seconds", "minutes", "hours", "until_time", "until_datetime"],
+    },
+    {
+      field: "timezone",
+      required: false,
       type: "string",
       canUseTemplate: false,
     },
