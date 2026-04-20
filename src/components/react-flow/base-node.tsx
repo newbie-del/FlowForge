@@ -1,12 +1,11 @@
-import type { ComponentProps, HTMLAttributes } from "react";
-
-import { cn } from "@/lib/utils";
-import { NodeStatus } from "./node-status-indicator";
 import { CheckCircle2Icon, Loader2Icon, XCircleIcon } from "lucide-react";
+import type { ComponentProps, HTMLAttributes } from "react";
+import { cn } from "@/lib/utils";
+import type { NodeStatus } from "./node-status-indicator";
 
 interface BaseNodeProps extends HTMLAttributes<HTMLDivElement> {
   status?: NodeStatus;
-};
+}
 
 export const BaseNode = ({ className, status, ...props }: BaseNodeProps) => {
   return (
@@ -15,24 +14,21 @@ export const BaseNode = ({ className, status, ...props }: BaseNodeProps) => {
         "bg-card text-card-foreground relative rounded-sm border border-muted-foreground hover:bg-accent",
         className,
       )}
-      tabIndex={0}
       {...props}
-      
-      >
-        {props.children}
-        {status === "error" && (
-        <XCircleIcon className="absolute right-0.5 bottom-0.5 size-2 text-red-700 stroke-3"/>
-        )}
-        {status === "success" && (
-        <CheckCircle2Icon className="absolute right-0.5 bottom-0.5 size-2 text-green-700 stroke-3"/>
-        )}
-        {status === "loading" && (
-        <Loader2Icon className="absolute -right-0.5 -bottom-0.5 size-2 text-blue-700 stroke-3 animate-spin"/>
-        )}
-
-      </div>
+    >
+      {props.children}
+      {status === "error" && (
+        <XCircleIcon className="absolute right-0.5 bottom-0.5 size-2 text-red-700 stroke-3" />
+      )}
+      {status === "success" && (
+        <CheckCircle2Icon className="absolute right-0.5 bottom-0.5 size-2 text-green-700 stroke-3" />
+      )}
+      {status === "loading" && (
+        <Loader2Icon className="absolute -right-0.5 -bottom-0.5 size-2 text-blue-700 stroke-3 animate-spin" />
+      )}
+    </div>
   );
-}
+};
 
 /**
  * A container for a consistent header layout intended to be used inside the

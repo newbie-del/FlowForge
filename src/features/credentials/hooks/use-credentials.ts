@@ -1,60 +1,65 @@
-import { useTRPC } from "@/trpc/client";
-import { useMutation, useQuery ,useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { CredentialType } from "@/generated/prisma";
+import { useTRPC } from "@/trpc/client";
 import { useCredentialsParams } from "./use-credentials-params";
-import { CredentialType } from "@/generated/prisma";
 
 export const useSuspenseCredentials = () => {
-    const trpc = useTRPC();
-    const [params] = useCredentialsParams();
+  const trpc = useTRPC();
+  const [params] = useCredentialsParams();
 
-    return useSuspenseQuery(trpc.credentials.getMany.queryOptions(params));
+  return useSuspenseQuery(trpc.credentials.getMany.queryOptions(params));
 };
 
 export const useCreateCredential = () => {
-    const queryClient = useQueryClient();
-    const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
 
-    return useMutation(
-        trpc.credentials.create.mutationOptions({
-            onSuccess: (data) => {
-                toast.success(`Credential "${data.name}" created successfully!`);
-                queryClient.invalidateQueries(
-                    trpc.credentials.getMany.queryOptions({}),
-                );
-            },
-            onError: (error) => {
-                toast.error(`Failed to create credential: ${error.message}`);
-            },
-        })
-    );
+  return useMutation(
+    trpc.credentials.create.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`Credential "${data.name}" created successfully!`);
+        queryClient.invalidateQueries(
+          trpc.credentials.getMany.queryOptions({}),
+        );
+      },
+      onError: (error) => {
+        toast.error(`Failed to create credential: ${error.message}`);
+      },
+    }),
+  );
 };
 
 /**
  * Hook to remmove a credential
  */
 export const useRemoveCredential = () => {
-    const queryClient = useQueryClient();
-    const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
 
-    return useMutation(
-        trpc.credentials.remove.mutationOptions({
-            onSuccess: (data) => {
-                toast.success(`Credential "${data.name}" removed successfully!`);
-                queryClient.invalidateQueries(trpc.credentials.getMany.queryOptions
-                ({}));
-                queryClient.invalidateQueries(
-                    trpc.credentials.getOne.queryFilter({id: data.id}),
-                );
-            }
-        })
-    )
-}
+  return useMutation(
+    trpc.credentials.remove.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`Credential "${data.name}" removed successfully!`);
+        queryClient.invalidateQueries(
+          trpc.credentials.getMany.queryOptions({}),
+        );
+        queryClient.invalidateQueries(
+          trpc.credentials.getOne.queryFilter({ id: data.id }),
+        );
+      },
+    }),
+  );
+};
 
 export const useSuspenseCredential = (id: string) => {
-    const trpc = useTRPC();
-    return useSuspenseQuery(
-        trpc.credentials.getOne.queryOptions({ id }));
+  const trpc = useTRPC();
+  return useSuspenseQuery(trpc.credentials.getOne.queryOptions({ id }));
 };
 
 /**
@@ -62,30 +67,28 @@ export const useSuspenseCredential = (id: string) => {
  */
 
 export const useUpdateCredential = () => {
-    const queryClient = useQueryClient();
-    const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
 
-    return useMutation(
-        trpc.credentials.update.mutationOptions({
-            onSuccess: (data) => {
-                toast.success(`Credential "${data.name}" Update successfully!`);
-                queryClient.invalidateQueries(
-                    trpc.credentials.getMany.queryOptions({}),
-                );
-                queryClient.invalidateQueries(
-                    trpc.credentials.getOne.queryOptions({id: data.id}),
-                );
-            },
-            onError: (error) => {
-                toast.error(`Failed to save credential: ${error.message}`);
-            },
-        })
-    );
+  return useMutation(
+    trpc.credentials.update.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`Credential "${data.name}" Update successfully!`);
+        queryClient.invalidateQueries(
+          trpc.credentials.getMany.queryOptions({}),
+        );
+        queryClient.invalidateQueries(
+          trpc.credentials.getOne.queryOptions({ id: data.id }),
+        );
+      },
+      onError: (error) => {
+        toast.error(`Failed to save credential: ${error.message}`);
+      },
+    }),
+  );
 };
 
 export const useCredentialsByType = (type: CredentialType) => {
-    const trpc = useTRPC();
-    return useQuery(
-        trpc.credentials.getByType.queryOptions({ type })
-    );
+  const trpc = useTRPC();
+  return useQuery(trpc.credentials.getByType.queryOptions({ type }));
 };

@@ -3,27 +3,27 @@ import { stripeTriggerChannel } from "@/inngest/channels/stripe-trigger";
 
 type StripeTriggerData = Record<string, unknown>;
 
-export const stripeTriggerExecutor: NodeExecutor<StripeTriggerData> = async ({ 
-    data, //3:11:08-vdo
-    nodeId,
-    context,
-    step,
-    publish,
+export const stripeTriggerExecutor: NodeExecutor<StripeTriggerData> = async ({
+  data: _data, //3:11:08-vdo
+  nodeId,
+  context,
+  step,
+  publish,
 }) => {
-    await publish (
-        stripeTriggerChannel().status({
-            nodeId,
-            status: "loading",
-        }),
-    );
+  await publish(
+    stripeTriggerChannel().status({
+      nodeId,
+      status: "loading",
+    }),
+  );
 
-    const result = await step.run("stripe-trigger", async() => context);
+  const result = await step.run("stripe-trigger", async () => context);
 
-    await publish (
-        stripeTriggerChannel().status({
-            nodeId,
-            status: "success",
-        }),
-    );
-    return result;
+  await publish(
+    stripeTriggerChannel().status({
+      nodeId,
+      status: "success",
+    }),
+  );
+  return result;
 };

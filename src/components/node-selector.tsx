@@ -97,6 +97,12 @@ const executionNodes: NodeTypeOption[] = [
     icon: MailIcon,
   },
   {
+    type: NodeType.TELEGRAM,
+    label: "Telegram",
+    description: "Send messages, photos, or documents to Telegram",
+    icon: "/logos/telegram.svg",
+  },
+  {
     type: NodeType.GOOGLE_SHEETS,
     label: "Google Sheets",
     description: "Read and write spreadsheet rows",

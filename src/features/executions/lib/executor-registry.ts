@@ -10,6 +10,7 @@ import { googleSheetsExecutor } from "../components/google-sheets/executor";
 import { httpRequestExecutor } from "../components/http-request/executor";
 import { openAiExecutor } from "../components/openai/executor";
 import { slackExecutor } from "../components/slack/executor";
+import { telegramExecutor } from "../components/telegram/executor";
 import type { NodeExecutor } from "../types";
 
 export const executorRegistry: Record<NodeType, NodeExecutor> = {
@@ -25,6 +26,7 @@ export const executorRegistry: Record<NodeType, NodeExecutor> = {
   [NodeType.SLACK]: slackExecutor,
   [NodeType.EMAIL]: emailExecutor,
   [NodeType.GOOGLE_SHEETS]: googleSheetsExecutor,
+  [NodeType.TELEGRAM]: telegramExecutor,
 };
 
 export const getExecutor = (type: NodeType): NodeExecutor => {

@@ -144,6 +144,7 @@ enum CredentialType {
   GEMINI
   SMTP
   GOOGLE_SHEETS
+  TELEGRAM_BOT
 }
 
 enum NodeType {
@@ -159,6 +160,7 @@ enum NodeType {
   SLACK
   EMAIL
   GOOGLE_SHEETS
+  TELEGRAM
 }
 
 enum ExecutionStatus {

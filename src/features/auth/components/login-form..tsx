@@ -1,10 +1,13 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import Link from "next/link";
 import { motion, useMotionValue, useTransform } from "framer-motion";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,9 +26,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -45,30 +45,36 @@ export function LoginForm() {
     },
   });
 
-  const signInGithub = async() => {
-    await authClient.signIn.social ({
-      provider: "github",
-    }, {
-      onSuccess: () => {
-        router.push("/");
+  const signInGithub = async () => {
+    await authClient.signIn.social(
+      {
+        provider: "github",
       },
-      onError: () => {
-        toast.error("Something went wrong");
-      }
-    });
+      {
+        onSuccess: () => {
+          router.push("/");
+        },
+        onError: () => {
+          toast.error("Something went wrong");
+        },
+      },
+    );
   };
 
-  const signInGoogle = async() => {
-    await authClient.signIn.social ({
-      provider: "google",
-    }, {
-      onSuccess: () => {
-        router.push("/");
+  const signInGoogle = async () => {
+    await authClient.signIn.social(
+      {
+        provider: "google",
       },
-      onError: () => {
-        toast.error("Something went wrong");
-      }
-    });
+      {
+        onSuccess: () => {
+          router.push("/");
+        },
+        onError: () => {
+          toast.error("Something went wrong");
+        },
+      },
+    );
   };
 
   const isPending = form.formState.isSubmitting;
@@ -87,7 +93,7 @@ export function LoginForm() {
         onError: (ctx) => {
           toast.error(ctx.error.message);
         },
-      }
+      },
     );
   };
 
@@ -178,9 +184,7 @@ export function LoginForm() {
                 </div>
 
                 <div className="relative text-center text-xs text-muted-foreground">
-                  <span className="bg-background px-2 relative z-10">
-                    OR
-                  </span>
+                  <span className="bg-background px-2 relative z-10">OR</span>
                   <div className="absolute inset-0 top-1/2 border-t" />
                 </div>
 

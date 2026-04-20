@@ -119,8 +119,8 @@ export const Editor = ({ workflowId }: { workflowId: string }) => {
         <MiniMap />
         <Panel position="top-right">
           <div className="flex items-center gap-2">
-            <AiWorkflowBuilder 
-              workflowId={workflowId} 
+            <AiWorkflowBuilder
+              workflowId={workflowId}
               workflowAIMetadata={workflow.aiBuilderMetadata}
             />
             <AddNodeButton />
