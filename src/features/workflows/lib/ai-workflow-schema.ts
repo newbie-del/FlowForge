@@ -4,6 +4,8 @@ import { CredentialType, NodeType } from "@/generated/prisma";
 const aiPlannerNodeTypes = [
   NodeType.MANUAL_TRIGGER,
   NodeType.SCHEDULE_TRIGGER,
+  NodeType.IF,
+  NodeType.WAIT,
   NodeType.GOOGLE_FORM_TRIGGER,
   NodeType.STRIPE_TRIGGER,
   NodeType.HTTP_REQUEST,

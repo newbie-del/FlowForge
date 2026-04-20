@@ -6,9 +6,11 @@ import { EmailNode } from "@/features/executions/components/email/node";
 import { GeminiNode } from "@/features/executions/components/gemini/node";
 import { GoogleSheetsNode } from "@/features/executions/components/google-sheets/node";
 import { HttpRequestNode } from "@/features/executions/components/http-request/node";
+import { IfNode } from "@/features/executions/components/if/node";
 import { OpenAiNode } from "@/features/executions/components/openai/node";
 import { SlackNode } from "@/features/executions/components/slack/node";
 import { TelegramNode } from "@/features/executions/components/telegram/node";
+import { WaitNode } from "@/features/executions/components/wait/node";
 import { GoogleFormTrigger } from "@/features/triggers/components/google-form-trigger/node";
 import { ManualTriggerNode } from "@/features/triggers/components/manual-trigger/node";
 import { ScheduleTriggerNode } from "@/features/triggers/components/schedule-trigger/node";
@@ -20,6 +22,8 @@ export const nodeComponents = {
   [NodeType.HTTP_REQUEST]: HttpRequestNode,
   [NodeType.MANUAL_TRIGGER]: ManualTriggerNode,
   [NodeType.SCHEDULE_TRIGGER]: ScheduleTriggerNode,
+  [NodeType.IF]: IfNode,
+  [NodeType.WAIT]: WaitNode,
   [NodeType.GOOGLE_FORM_TRIGGER]: GoogleFormTrigger,
   [NodeType.STRIPE_TRIGGER]: StripeTriggerNode,
   [NodeType.GEMINI]: GeminiNode,

@@ -1,6 +1,11 @@
 import { NonRetriableError } from "inngest";
 import { getExecutor } from "@/features/executions/lib/executor-registry";
 import {
+  getNodeRoute,
+  stripRuntimeState,
+  withExecutionSource,
+} from "@/features/executions/lib/runtime-routing";
+import {
   buildScheduleTriggerMetadata,
   getNextRunAt,
   normalizeScheduleData,
@@ -14,12 +19,14 @@ import { geminiChannel } from "./channels/gemini";
 import { googleFormTriggerChannel } from "./channels/google-form-trigger";
 import { googleSheetsChannel } from "./channels/google-sheets";
 import { httpRequestChannel } from "./channels/http-request";
+import { ifNodeChannel } from "./channels/if-node";
 import { manualTriggerChannel } from "./channels/manual-trigger";
 import { openAiChannel } from "./channels/openai";
 import { scheduleTriggerChannel } from "./channels/schedule-trigger";
 import { slackChannel } from "./channels/slack";
 import { stripeTriggerChannel } from "./channels/stripe-trigger";
 import { telegramChannel } from "./channels/telegram";
+import { waitNodeChannel } from "./channels/wait-node";
 import { inngest } from "./client";
 import { sendWorkflowExecution, topologicalSort } from "./utils";
 
@@ -43,6 +50,30 @@ const appendRecentRuns = (
 
   return [run, ...existingRuns].slice(0, 8);
 };
+
+function isTriggerNodeType(nodeType: NodeType) {
+  return (
+    nodeType === NodeType.INITIAL ||
+    nodeType === NodeType.MANUAL_TRIGGER ||
+    nodeType === NodeType.SCHEDULE_TRIGGER ||
+    nodeType === NodeType.GOOGLE_FORM_TRIGGER ||
+    nodeType === NodeType.STRIPE_TRIGGER
+  );
+}
+
+function inferExecutionSource(
+  initialData: Record<string, unknown>,
+  explicitSource?: string,
+) {
+  if (explicitSource?.trim()) {
+    return explicitSource;
+  }
+
+  if (initialData.schedule) return "schedule";
+  if (initialData.googleForm) return "google-form";
+  if (initialData.stripe) return "stripe";
+  return "manual";
+}
 
 export const executeWorkflow = inngest.createFunction(
   {
@@ -75,6 +106,8 @@ export const executeWorkflow = inngest.createFunction(
       emailChannel(),
       googleSheetsChannel(),
       telegramChannel(),
+      ifNodeChannel(),
+      waitNodeChannel(),
     ],
   },
   async ({ event, step, publish }) => {
@@ -94,7 +127,7 @@ export const executeWorkflow = inngest.createFunction(
       });
     });
 
-    const sortedNodes = await step.run("prepare-workflow", async () => {
+    const preparedWorkflow = await step.run("prepare-workflow", async () => {
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: { id: workflowId },
         include: {
@@ -103,7 +136,10 @@ export const executeWorkflow = inngest.createFunction(
         },
       });
 
-      return topologicalSort(workflow.nodes, workflow.connections);
+      return {
+        sortedNodes: topologicalSort(workflow.nodes, workflow.connections),
+        connections: workflow.connections,
+      };
     });
 
     const userId = await step.run("find-user-id", async () => {
@@ -117,11 +153,79 @@ export const executeWorkflow = inngest.createFunction(
       return workflow.userId;
     });
 
-    //Initialize the context with any initial data from the trigger
-    let context = event.data.initialData || {};
+    const sortedNodes = preparedWorkflow.sortedNodes;
+    const workflowConnections = preparedWorkflow.connections;
 
-    //Execute each node
+    const incomingByNodeId = new Map<string, typeof workflowConnections>();
+    const outgoingByNodeId = new Map<string, typeof workflowConnections>();
+
+    for (const connection of workflowConnections) {
+      const incoming = incomingByNodeId.get(connection.toNodeId) ?? [];
+      incoming.push(connection);
+      incomingByNodeId.set(connection.toNodeId, incoming);
+
+      const outgoing = outgoingByNodeId.get(connection.fromNodeId) ?? [];
+      outgoing.push(connection);
+      outgoingByNodeId.set(connection.fromNodeId, outgoing);
+    }
+
+    const initialData = (event.data.initialData || {}) as Record<
+      string,
+      unknown
+    >;
+    const source = inferExecutionSource(
+      initialData,
+      typeof event.data.source === "string" ? event.data.source : undefined,
+    );
+    let context = withExecutionSource(initialData, source);
+
+    const startNodeIds = new Set<string>();
+    const sourceNodeId =
+      typeof event.data.sourceNodeId === "string"
+        ? event.data.sourceNodeId
+        : null;
+
+    if (sourceNodeId && sortedNodes.some((node) => node.id === sourceNodeId)) {
+      startNodeIds.add(sourceNodeId);
+    } else {
+      for (const node of sortedNodes) {
+        const nodeType = node.type as NodeType;
+        const incoming = incomingByNodeId.get(node.id) ?? [];
+        if (incoming.length === 0 && isTriggerNodeType(nodeType)) {
+          startNodeIds.add(node.id);
+        }
+      }
+      if (startNodeIds.size === 0 && sortedNodes[0]) {
+        startNodeIds.add(sortedNodes[0].id);
+      }
+    }
+
+    const executedNodeIds = new Set<string>();
+    const selectedOutputsByNodeId = new Map<string, Set<string>>();
+
     for (const node of sortedNodes) {
+      const incomingConnections = incomingByNodeId.get(node.id) ?? [];
+      const shouldExecuteAsStart = startNodeIds.has(node.id);
+      const shouldExecuteFromIncoming = incomingConnections.some(
+        (connection) => {
+          if (!executedNodeIds.has(connection.fromNodeId)) {
+            return false;
+          }
+          const selectedOutputs =
+            selectedOutputsByNodeId.get(connection.fromNodeId) ?? null;
+          if (!selectedOutputs || selectedOutputs.size === 0) {
+            return true;
+          }
+
+          const fromOutput = connection.fromOutput || "main";
+          return selectedOutputs.has(fromOutput);
+        },
+      );
+
+      if (!shouldExecuteAsStart && !shouldExecuteFromIncoming) {
+        continue;
+      }
+
       const executor = getExecutor(node.type as NodeType);
       context = await executor({
         data: node.data as Record<string, unknown>,
@@ -131,7 +235,21 @@ export const executeWorkflow = inngest.createFunction(
         step,
         publish,
       });
+
+      executedNodeIds.add(node.id);
+      const routeOutputs = getNodeRoute(context, node.id);
+      const fallbackOutputs = new Set(
+        (outgoingByNodeId.get(node.id) ?? []).map(
+          (connection) => connection.fromOutput || "main",
+        ),
+      );
+      selectedOutputsByNodeId.set(
+        node.id,
+        routeOutputs?.length ? new Set(routeOutputs) : fallbackOutputs,
+      );
     }
+
+    const publicContext = stripRuntimeState(context);
 
     await step.run("update-execution", async () => {
       return prisma.execution.update({
@@ -139,14 +257,14 @@ export const executeWorkflow = inngest.createFunction(
         data: {
           status: ExecutionStatus.SUCCESS,
           completedAt: new Date(),
-          output: context,
+          output: publicContext as Prisma.InputJsonValue,
         },
       });
     });
 
     return {
       workflowId,
-      result: context,
+      result: publicContext,
     };
   },
 );

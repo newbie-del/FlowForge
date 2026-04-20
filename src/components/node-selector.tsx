@@ -4,9 +4,11 @@ import { createId } from "@paralleldrive/cuid2";
 import { useReactFlow } from "@xyflow/react";
 import {
   Clock3Icon,
+  GitBranchIcon,
   GlobeIcon,
   MailIcon,
   MousePointerIcon,
+  PauseCircleIcon,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback } from "react";
@@ -64,6 +66,18 @@ const triggerNodes: NodeTypeOption[] = [
 ];
 
 const executionNodes: NodeTypeOption[] = [
+  {
+    type: NodeType.IF,
+    label: "IF",
+    description: "Branch workflow with TRUE/FALSE conditions.",
+    icon: GitBranchIcon,
+  },
+  {
+    type: NodeType.WAIT,
+    label: "Wait",
+    description: "Pause execution for a duration or until a target time.",
+    icon: PauseCircleIcon,
+  },
   {
     type: NodeType.HTTP_REQUEST,
     label: "HTTP Request",
@@ -227,6 +241,39 @@ export function NodeSelector({
     [setNodes, getNodes, onOpenChange, screenToFlowPosition],
   );
 
+  const renderNodeButton = (nodeType: NodeTypeOption) => {
+    const Icon = nodeType.icon;
+
+    return (
+      <button
+        type="button"
+        key={nodeType.type}
+        className="w-full justify-start h-auto py-5 px-4 rounded-none cursor-pointer border-l-2 border-transparent hover:border-l-primary"
+        onClick={() => handleNodeSelect(nodeType)}
+      >
+        <div className="flex items-center gap-6 w-full overflow-hidden">
+          {typeof Icon === "string" ? (
+            <Image
+              src={Icon}
+              alt={nodeType.label}
+              width={20}
+              height={20}
+              className="size-5 object-contain rounded-sm"
+            />
+          ) : (
+            <Icon className="size-5" />
+          )}
+          <div className="flex flex-col items-start text-left">
+            <span className="font-medium text-sm">{nodeType.label}</span>
+            <span className="text-xs text-muted-foreground">
+              {nodeType.description}
+            </span>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>{children}</SheetTrigger>
@@ -237,79 +284,9 @@ export function NodeSelector({
             A trigger is a step that starts the workflow.
           </SheetDescription>
         </SheetHeader>
-        <div>
-          {triggerNodes.map((nodeType) => {
-            const Icon = nodeType.icon;
-
-            return (
-              <button
-                type="button"
-                key={nodeType.type}
-                className="w-full justify-start h-auto py-5 px-4 rounded-none cursor-pointer border-l-2 border-transparent hover:border-l-primary"
-                onClick={() => handleNodeSelect(nodeType)}
-              >
-                <div className="flex items-center gap-6 w-full overflow-hidden">
-                  {typeof Icon === "string" ? (
-                    <Image
-                      src={Icon}
-                      alt={nodeType.label}
-                      width={20}
-                      height={20}
-                      className="size-5 object-contain rounded-sm"
-                    />
-                  ) : (
-                    <Icon className="size-5" />
-                  )}
-                  <div className="flex flex-col items-start text-left">
-                    <span className="font-medium text-sm">
-                      {nodeType.label}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {nodeType.description}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <div>{triggerNodes.map(renderNodeButton)}</div>
         <Separator />
-        <div>
-          {executionNodes.map((nodeType) => {
-            const Icon = nodeType.icon;
-
-            return (
-              <button
-                type="button"
-                key={nodeType.type}
-                className="w-full justify-start h-auto py-5 px-4 rounded-none cursor-pointer border-l-2 border-transparent hover:border-l-primary"
-                onClick={() => handleNodeSelect(nodeType)}
-              >
-                <div className="flex items-center gap-6 w-full overflow-hidden">
-                  {typeof Icon === "string" ? (
-                    <Image
-                      src={Icon}
-                      alt={nodeType.label}
-                      width={20}
-                      height={20}
-                      className="size-5 object-contain rounded-sm"
-                    />
-                  ) : (
-                    <Icon className="size-5" />
-                  )}
-                  <div className="flex flex-col items-start text-left">
-                    <span className="font-medium text-sm">
-                      {nodeType.label}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {nodeType.description}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <div>{executionNodes.map(renderNodeButton)}</div>
       </SheetContent>
     </Sheet>
   );
