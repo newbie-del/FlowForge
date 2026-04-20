@@ -49,7 +49,7 @@ export const discordExecutor: NodeExecutor<DiscordData> = async ({
     : undefined;
 
   try {
-    const result = await step.run("discord-webhook", async () => {
+    const result = await step.run(`discord-webhook-${nodeId}`, async () => {
       if (!data.webhookUrl) {
         await publish(
           discordChannel().status({

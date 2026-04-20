@@ -3,12 +3,16 @@
 import { createId } from "@paralleldrive/cuid2";
 import { useReactFlow } from "@xyflow/react";
 import {
+  Code2Icon,
   Clock3Icon,
   GitBranchIcon,
   GlobeIcon,
+  MergeIcon,
   MailIcon,
   MousePointerIcon,
   PauseCircleIcon,
+  PencilLineIcon,
+  RepeatIcon,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback } from "react";
@@ -23,8 +27,12 @@ import {
 } from "@/components/ui/sheet";
 import { NodeType } from "@/generated/prisma";
 import {
+  CODE_NODE_TYPE,
   isManualTriggerType,
+  LOOP_OVER_ITEMS_NODE_TYPE,
+  MERGE_NODE_TYPE,
   normalizeNodeType,
+  SET_NODE_TYPE,
   SCHEDULE_TRIGGER_TYPE,
 } from "@/lib/node-type";
 import { Separator } from "./ui/separator";
@@ -77,6 +85,30 @@ const executionNodes: NodeTypeOption[] = [
     label: "Wait",
     description: "Pause execution for a duration or until a target time.",
     icon: PauseCircleIcon,
+  },
+  {
+    type: SET_NODE_TYPE,
+    label: "Set",
+    description: "Add or modify fields in workflow data.",
+    icon: PencilLineIcon,
+  },
+  {
+    type: MERGE_NODE_TYPE,
+    label: "Merge",
+    description: "Combine two branches into one output.",
+    icon: MergeIcon,
+  },
+  {
+    type: LOOP_OVER_ITEMS_NODE_TYPE,
+    label: "Loop Over Items",
+    description: "Iterate over array items sequentially, parallel, or in batch.",
+    icon: RepeatIcon,
+  },
+  {
+    type: CODE_NODE_TYPE,
+    label: "Code",
+    description: "Run custom JavaScript logic.",
+    icon: Code2Icon,
   },
   {
     type: NodeType.HTTP_REQUEST,

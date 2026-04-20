@@ -92,6 +92,75 @@ export const nodeInputSchemas: Record<NodeType, z.ZodSchema> = {
     })
     .strict(),
 
+  [NodeType.SET]: z
+    .object({
+      fields: z
+        .array(
+          z.object({
+            name: z.string().min(1),
+            value: z.string(),
+            type: z.enum(["text", "number", "boolean", "json", "array"]),
+          }),
+        )
+        .min(1),
+      keepOnlySetFields: z.boolean().optional(),
+      includePreviousData: z.boolean().optional(),
+      useExpressions: z.boolean().optional(),
+    })
+    .strict(),
+
+  [NodeType.MERGE]: z
+    .object({
+      mode: z
+        .enum([
+          "combine_objects",
+          "append_arrays",
+          "merge_by_index",
+          "merge_by_key",
+          "wait_for_both",
+        ])
+        .optional(),
+      keyField: z.string().optional(),
+      conflictStrategy: z
+        .enum(["prefer_a", "prefer_b", "keep_both"])
+        .optional(),
+      inputAPath: z.string().min(1),
+      inputBPath: z.string().min(1),
+      outputVariableName: z.string().min(1),
+    })
+    .strict(),
+
+  [NodeType.LOOP_OVER_ITEMS]: z
+    .object({
+      mode: z.enum(["sequential", "parallel", "batch"]).optional(),
+      itemsPath: z.string().min(1),
+      batchSize: z.number().int().positive().optional(),
+      maxItems: z.number().int().positive().optional(),
+      delayBetweenItemsMs: z.number().int().min(0).optional(),
+      continueOnItemError: z.boolean().optional(),
+      itemVariableName: z.string().min(1).optional(),
+      outputVariableName: z.string().min(1).optional(),
+    })
+    .strict(),
+
+  [NodeType.CODE]: z
+    .object({
+      variableName: z.string().min(1),
+      timeoutMs: z.number().int().min(250).max(10000).optional(),
+      code: z.string().min(1),
+      template: z
+        .enum([
+          "filter_items",
+          "map_fields",
+          "map_items",
+          "rename_fields",
+          "score_jobs",
+          "transform_payload",
+        ])
+        .optional(),
+    })
+    .strict(),
+
   [NodeType.GOOGLE_FORM_TRIGGER]: z
     .object({
       formId: z.string().optional(),
@@ -274,6 +343,40 @@ export const nodeOutputSchemas: Record<NodeType, NodeOutput> = {
     example: {},
   },
 
+  [NodeType.SET]: {
+    variableName: "",
+    structure: "{ ...context, ...setFields }",
+    example: { status: "approved", source: "linkedin" },
+  },
+
+  [NodeType.MERGE]: {
+    variableName: "",
+    structure: "{ [outputVariableName]: mergedData }",
+    example: { merged: { name: "Rahul", company: "Google" } },
+  },
+
+  [NodeType.LOOP_OVER_ITEMS]: {
+    variableName: "",
+    structure:
+      "{ [outputVariableName]: { mode: string, totalItems: number, totalUnits: number, processed: number, failed: number, errors: string[] } }",
+    example: {
+      loop: {
+        mode: "sequential",
+        totalItems: 10,
+        totalUnits: 10,
+        processed: 10,
+        failed: 0,
+        errors: [],
+      },
+    },
+  },
+
+  [NodeType.CODE]: {
+    variableName: "",
+    structure: "{ [variableName]: unknown }",
+    example: { codeResult: [{ title: "React Developer" }] },
+  },
+
   [NodeType.GOOGLE_FORM_TRIGGER]: {
     variableName: "googleForm",
     structure: '{ "responses": Record<string, string>, "timestamp": ISO8601 }',
@@ -397,9 +500,18 @@ export function buildVariableRegistry(
     const schema = nodeOutputSchemas[node.type];
     if (!schema) continue;
 
-    // Configurable variable name (HTTP_REQUEST, AI nodes use node.data.variableName)
-    if (!schema.variableName && node.data.variableName) {
-      const varName = String(node.data.variableName);
+    const dynamicVariableName =
+      typeof node.data.variableName === "string" &&
+      node.data.variableName.trim()
+        ? node.data.variableName
+        : typeof node.data.outputVariableName === "string" &&
+            node.data.outputVariableName.trim()
+          ? node.data.outputVariableName
+          : "";
+
+    // Configurable variable name (HTTP_REQUEST/AI/CODE or outputVariableName nodes)
+    if (!schema.variableName && dynamicVariableName) {
+      const varName = String(dynamicVariableName);
       registry[varName] = {
         nodeId: node.id,
         nodeType: node.type,
@@ -512,6 +624,86 @@ export const nodeRequirements: Record<NodeType, NodeRequirement[]> = {
     {
       field: "timezone",
       required: false,
+      type: "string",
+      canUseTemplate: false,
+    },
+  ],
+
+  [NodeType.SET]: [
+    {
+      field: "fields",
+      required: true,
+      type: "json",
+      canUseTemplate: false,
+    },
+  ],
+
+  [NodeType.MERGE]: [
+    {
+      field: "mode",
+      required: true,
+      type: "enum",
+      canUseTemplate: false,
+      examples: [
+        "combine_objects",
+        "append_arrays",
+        "merge_by_index",
+        "merge_by_key",
+        "wait_for_both",
+      ],
+    },
+    {
+      field: "inputAPath",
+      required: true,
+      type: "string",
+      canUseTemplate: true,
+    },
+    {
+      field: "inputBPath",
+      required: true,
+      type: "string",
+      canUseTemplate: true,
+    },
+    {
+      field: "outputVariableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+  ],
+
+  [NodeType.LOOP_OVER_ITEMS]: [
+    {
+      field: "mode",
+      required: true,
+      type: "enum",
+      canUseTemplate: false,
+      examples: ["sequential", "parallel", "batch"],
+    },
+    {
+      field: "itemsPath",
+      required: true,
+      type: "string",
+      canUseTemplate: true,
+    },
+    {
+      field: "outputVariableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+  ],
+
+  [NodeType.CODE]: [
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    {
+      field: "code",
+      required: true,
       type: "string",
       canUseTemplate: false,
     },

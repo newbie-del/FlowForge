@@ -34,7 +34,7 @@ export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({
   );
 
   try {
-    const result = await step.run("http-request", async () => {
+    const result = await step.run(`http-request-${nodeId}`, async () => {
       if (!data.endpoint) {
         await publish(
           httpRequestChannel().status({

@@ -1,4 +1,8 @@
 import { NonRetriableError } from "inngest";
+import {
+  buildLoopPlan,
+  type LoopOverItemsNodeData,
+} from "@/features/executions/components/loop-over-items/executor";
 import { getExecutor } from "@/features/executions/lib/executor-registry";
 import {
   getNodeRoute,
@@ -13,6 +17,7 @@ import {
 import { ExecutionStatus, NodeType, type Prisma } from "@/generated/prisma";
 import prisma from "@/lib/db";
 import { anthropicChannel } from "./channels/anthropic";
+import { codeNodeChannel } from "./channels/code-node";
 import { discordChannel } from "./channels/discord";
 import { emailChannel } from "./channels/email";
 import { geminiChannel } from "./channels/gemini";
@@ -20,9 +25,12 @@ import { googleFormTriggerChannel } from "./channels/google-form-trigger";
 import { googleSheetsChannel } from "./channels/google-sheets";
 import { httpRequestChannel } from "./channels/http-request";
 import { ifNodeChannel } from "./channels/if-node";
+import { loopOverItemsChannel } from "./channels/loop-over-items";
 import { manualTriggerChannel } from "./channels/manual-trigger";
+import { mergeNodeChannel } from "./channels/merge-node";
 import { openAiChannel } from "./channels/openai";
 import { scheduleTriggerChannel } from "./channels/schedule-trigger";
+import { setNodeChannel } from "./channels/set-node";
 import { slackChannel } from "./channels/slack";
 import { stripeTriggerChannel } from "./channels/stripe-trigger";
 import { telegramChannel } from "./channels/telegram";
@@ -108,6 +116,10 @@ export const executeWorkflow = inngest.createFunction(
       telegramChannel(),
       ifNodeChannel(),
       waitNodeChannel(),
+      setNodeChannel(),
+      mergeNodeChannel(),
+      loopOverItemsChannel(),
+      codeNodeChannel(),
     ],
   },
   async ({ event, step, publish }) => {
@@ -202,6 +214,7 @@ export const executeWorkflow = inngest.createFunction(
 
     const executedNodeIds = new Set<string>();
     const selectedOutputsByNodeId = new Map<string, Set<string>>();
+    const nodeById = new Map(sortedNodes.map((node) => [node.id, node]));
 
     for (const node of sortedNodes) {
       const incomingConnections = incomingByNodeId.get(node.id) ?? [];
@@ -235,6 +248,145 @@ export const executeWorkflow = inngest.createFunction(
         step,
         publish,
       });
+
+      if (node.type === NodeType.LOOP_OVER_ITEMS) {
+        const loopData = node.data as LoopOverItemsNodeData;
+        const loopPlan = buildLoopPlan(loopData, context);
+        const outgoing = outgoingByNodeId.get(node.id) ?? [];
+
+        if (outgoing.length > 1) {
+          throw new NonRetriableError(
+            "Loop Over Items currently supports one outgoing branch.",
+          );
+        }
+
+        const firstTargetId = outgoing[0]?.toNodeId;
+        if (firstTargetId && loopPlan.units.length > 0) {
+          const linearChain: string[] = [];
+          let currentNodeId: string | undefined = firstTargetId;
+          while (currentNodeId) {
+            const currentNode = nodeById.get(currentNodeId);
+            if (!currentNode) break;
+            linearChain.push(currentNodeId);
+
+            const currentOutgoing = (outgoingByNodeId.get(currentNodeId) ??
+              []) as typeof workflowConnections;
+            const currentIncoming = (incomingByNodeId.get(currentNodeId) ??
+              []) as typeof workflowConnections;
+            if (currentIncoming.length > 1 || currentOutgoing.length !== 1) {
+              break;
+            }
+            currentNodeId = currentOutgoing[0]?.toNodeId;
+          }
+
+          let processed = 0;
+          let failed = 0;
+          const errors: string[] = [];
+          const publishLoopProgress = async (
+            status: "loading" | "success" | "error",
+          ) =>
+            publish(
+              loopOverItemsChannel().status({
+                nodeId: node.id,
+                status,
+                processed,
+                totalItems: loopPlan.totalItems,
+                failed,
+              }),
+            );
+
+          await publishLoopProgress("loading");
+
+          const runLoopUnit = async (
+            unit: (typeof loopPlan.units)[number],
+            unitIndex: number,
+          ) => {
+            const singleItem = unit.items[0];
+            let loopContext: Record<string, unknown> = {
+              ...context,
+              [loopPlan.itemVariableName]: unit.isBatch
+                ? unit.items
+                : singleItem,
+              items: unit.isBatch ? unit.items : [singleItem],
+              payload: unit.isBatch ? unit.items : singleItem,
+            };
+
+            try {
+              for (const chainNodeId of linearChain) {
+                const chainNode = nodeById.get(chainNodeId);
+                if (!chainNode) continue;
+                const chainExecutor = getExecutor(chainNode.type as NodeType);
+                const runtimeLoopNodeId = `${chainNode.id}__loop_${unitIndex + 1}`;
+                loopContext = await chainExecutor({
+                  data: chainNode.data as Record<string, unknown>,
+                  nodeId: runtimeLoopNodeId,
+                  userId,
+                  context: loopContext,
+                  step,
+                  publish,
+                });
+              }
+              processed += unit.items.length;
+              await publishLoopProgress("loading");
+            } catch (error) {
+              failed += unit.items.length;
+              await publishLoopProgress("loading");
+              if (!loopPlan.continueOnItemError) {
+                throw error;
+              }
+              errors.push(
+                error instanceof Error
+                  ? `Unit ${unitIndex + 1}: ${error.message}`
+                  : `Unit ${unitIndex + 1}: loop unit failed`,
+              );
+            }
+          };
+
+          try {
+            if (loopPlan.mode === "parallel") {
+              await Promise.all(
+                loopPlan.units.map((unit, index) => runLoopUnit(unit, index)),
+              );
+            } else {
+              for (let i = 0; i < loopPlan.units.length; i += 1) {
+                const unit = loopPlan.units[i];
+                if (!unit) continue;
+                await runLoopUnit(unit, i);
+
+                if (
+                  loopPlan.delayBetweenItemsMs > 0 &&
+                  i < loopPlan.units.length - 1
+                ) {
+                  const delaySeconds = Math.max(
+                    1,
+                    Math.ceil(loopPlan.delayBetweenItemsMs / 1000),
+                  );
+                  await step.sleep(
+                    `loop-delay-${node.id}-${i + 1}`,
+                    `${delaySeconds}s`,
+                  );
+                }
+              }
+            }
+          } catch (error) {
+            await publishLoopProgress("error");
+            throw error;
+          }
+
+          context = {
+            ...context,
+            [loopPlan.outputVariableName]: {
+              mode: loopPlan.mode,
+              totalItems: loopPlan.totalItems,
+              totalUnits: loopPlan.units.length,
+              processed,
+              failed,
+              errors,
+            },
+          };
+          await publishLoopProgress("success");
+        }
+      }
 
       executedNodeIds.add(node.id);
       const routeOutputs = getNodeRoute(context, node.id);

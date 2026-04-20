@@ -156,7 +156,7 @@ export const googleSheetsExecutor: NodeExecutor<GoogleSheetsNodeData> = async ({
   }
 
   const credential = await step.run(
-    "get-google-sheets-credential",
+    `get-google-sheets-credential-${nodeId}`,
     async () => {
       return prisma.credential.findUnique({
         where: {
@@ -193,7 +193,7 @@ export const googleSheetsExecutor: NodeExecutor<GoogleSheetsNodeData> = async ({
   const a1Range = `${sheetName}!${range}`;
 
   try {
-    const result = await step.run("execute-google-sheets", async () => {
+    const result = await step.run(`execute-google-sheets-${nodeId}`, async () => {
       const { sheets } = await createGoogleSheetsClients(credential.value);
 
       if (operation === "create_sheet") {

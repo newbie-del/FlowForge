@@ -225,6 +225,18 @@ export class WorkflowValidator {
       case NodeType.WAIT:
         this.validateWaitNode(node);
         break;
+      case NodeType.SET:
+        this.validateSetNode(node);
+        break;
+      case NodeType.MERGE:
+        this.validateMergeNode(node);
+        break;
+      case NodeType.LOOP_OVER_ITEMS:
+        this.validateLoopNode(node);
+        break;
+      case NodeType.CODE:
+        this.validateCodeNode(node);
+        break;
     }
   }
 
@@ -385,6 +397,160 @@ export class WorkflowValidator {
         node.id,
         "dateTime",
         "Wait mode 'until_datetime' requires dateTime",
+      );
+    }
+  }
+
+  private validateSetNode(node: AiWorkflowNode): void {
+    const fields = Array.isArray(node.data.fields) ? node.data.fields : [];
+    if (fields.length === 0) {
+      this.addError(
+        "error",
+        node.id,
+        "fields",
+        "SET node requires at least one field",
+      );
+      return;
+    }
+
+    const seen = new Set<string>();
+    for (let index = 0; index < fields.length; index += 1) {
+      const item = fields[index];
+      if (!item || typeof item !== "object") {
+        this.addError(
+          "error",
+          node.id,
+          `fields.${index}`,
+          "Field entry is invalid",
+        );
+        continue;
+      }
+      const name = String((item as Record<string, unknown>).name ?? "").trim();
+      if (!name) {
+        this.addError(
+          "error",
+          node.id,
+          `fields.${index}.name`,
+          "Field name is required",
+        );
+      } else {
+        const normalized = name.toLowerCase();
+        if (seen.has(normalized)) {
+          this.addError(
+            "error",
+            node.id,
+            `fields.${index}.name`,
+            "Duplicate field name",
+          );
+        }
+        seen.add(normalized);
+      }
+
+      const type = String((item as Record<string, unknown>).type ?? "text");
+      if (!["text", "number", "boolean", "json", "array"].includes(type)) {
+        this.addError(
+          "error",
+          node.id,
+          `fields.${index}.type`,
+          "Invalid SET field type",
+        );
+      }
+    }
+  }
+
+  private validateMergeNode(node: AiWorkflowNode): void {
+    const mode = String(node.data.mode ?? "combine_objects");
+    const validModes = new Set([
+      "combine_objects",
+      "append_arrays",
+      "merge_by_index",
+      "merge_by_key",
+      "wait_for_both",
+    ]);
+    if (!validModes.has(mode)) {
+      this.addError("error", node.id, "mode", `Invalid merge mode: ${mode}`);
+    }
+
+    if (!String(node.data.inputAPath ?? "").trim()) {
+      this.addError(
+        "error",
+        node.id,
+        "inputAPath",
+        "Merge inputAPath is required",
+      );
+    }
+    if (!String(node.data.inputBPath ?? "").trim()) {
+      this.addError(
+        "error",
+        node.id,
+        "inputBPath",
+        "Merge inputBPath is required",
+      );
+    }
+
+    if (mode === "merge_by_key" && !String(node.data.keyField ?? "").trim()) {
+      this.addError(
+        "error",
+        node.id,
+        "keyField",
+        "Merge by key requires keyField",
+      );
+    }
+  }
+
+  private validateLoopNode(node: AiWorkflowNode): void {
+    const mode = String(node.data.mode ?? "sequential");
+    if (!["sequential", "parallel", "batch"].includes(mode)) {
+      this.addError("error", node.id, "mode", `Invalid loop mode: ${mode}`);
+    }
+    if (!String(node.data.itemsPath ?? "").trim()) {
+      this.addError(
+        "error",
+        node.id,
+        "itemsPath",
+        "Loop node requires itemsPath",
+      );
+    }
+    const delay = Number(node.data.delayBetweenItemsMs ?? 0);
+    if (!Number.isFinite(delay) || delay < 0) {
+      this.addError(
+        "error",
+        node.id,
+        "delayBetweenItemsMs",
+        "Delay must be >= 0",
+      );
+    }
+    if (mode === "batch") {
+      const batchSize = Number(node.data.batchSize ?? 0);
+      if (!Number.isFinite(batchSize) || batchSize <= 0) {
+        this.addError("error", node.id, "batchSize", "Batch size must be > 0");
+      }
+    }
+    if (node.data.maxItems !== undefined) {
+      const maxItems = Number(node.data.maxItems);
+      if (!Number.isFinite(maxItems) || maxItems <= 0) {
+        this.addError("error", node.id, "maxItems", "Max items must be > 0");
+      }
+    }
+  }
+
+  private validateCodeNode(node: AiWorkflowNode): void {
+    const code = String(node.data.code ?? "").trim();
+    if (!code) {
+      this.addError(
+        "error",
+        node.id,
+        "code",
+        "Code node requires JavaScript code",
+      );
+    }
+    const timeout = Number(node.data.timeoutMs ?? 3000);
+    if (!Number.isFinite(timeout) || timeout < 250 || timeout > 10000) {
+      this.addError(
+        "warning",
+        node.id,
+        "timeoutMs",
+        "Code timeout should be between 250 and 10000 ms",
       );
     }
   }
@@ -643,7 +809,13 @@ export class WorkflowValidator {
     for (const node of sortedNodes) {
       const schema = nodeOutputSchemas[node.type];
       if (schema) {
-        const varName = schema.variableName || String(node.data.variableName);
+        const dynamicName =
+          (typeof node.data.variableName === "string" &&
+            node.data.variableName.trim()) ||
+          (typeof node.data.outputVariableName === "string" &&
+            node.data.outputVariableName.trim()) ||
+          "";
+        const varName = schema.variableName || dynamicName;
         if (varName) {
           availableVariables.add(varName);
         }

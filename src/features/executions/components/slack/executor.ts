@@ -46,7 +46,7 @@ export const slackExecutor: NodeExecutor<SlackData> = async ({
   const content = decode(rawContent);
 
   try {
-    const result = await step.run("slack-webhook", async () => {
+    const result = await step.run(`slack-webhook-${nodeId}`, async () => {
       if (!data.webhookUrl) {
         await publish(
           slackChannel().status({

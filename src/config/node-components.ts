@@ -7,7 +7,11 @@ import { GeminiNode } from "@/features/executions/components/gemini/node";
 import { GoogleSheetsNode } from "@/features/executions/components/google-sheets/node";
 import { HttpRequestNode } from "@/features/executions/components/http-request/node";
 import { IfNode } from "@/features/executions/components/if/node";
+import { CodeNode } from "@/features/executions/components/code/node";
+import { LoopOverItemsNode } from "@/features/executions/components/loop-over-items/node";
+import { MergeNode } from "@/features/executions/components/merge/node";
 import { OpenAiNode } from "@/features/executions/components/openai/node";
+import { SetNode } from "@/features/executions/components/set/node";
 import { SlackNode } from "@/features/executions/components/slack/node";
 import { TelegramNode } from "@/features/executions/components/telegram/node";
 import { WaitNode } from "@/features/executions/components/wait/node";
@@ -16,6 +20,12 @@ import { ManualTriggerNode } from "@/features/triggers/components/manual-trigger
 import { ScheduleTriggerNode } from "@/features/triggers/components/schedule-trigger/node";
 import { StripeTriggerNode } from "@/features/triggers/components/stripe-trigger/node";
 import { NodeType } from "@/generated/prisma";
+import {
+  CODE_NODE_TYPE,
+  LOOP_OVER_ITEMS_NODE_TYPE,
+  MERGE_NODE_TYPE,
+  SET_NODE_TYPE,
+} from "@/lib/node-type";
 
 export const nodeComponents = {
   [NodeType.INITIAL]: InitialNode,
@@ -24,6 +34,10 @@ export const nodeComponents = {
   [NodeType.SCHEDULE_TRIGGER]: ScheduleTriggerNode,
   [NodeType.IF]: IfNode,
   [NodeType.WAIT]: WaitNode,
+  [SET_NODE_TYPE]: SetNode,
+  [MERGE_NODE_TYPE]: MergeNode,
+  [LOOP_OVER_ITEMS_NODE_TYPE]: LoopOverItemsNode,
+  [CODE_NODE_TYPE]: CodeNode,
   [NodeType.GOOGLE_FORM_TRIGGER]: GoogleFormTrigger,
   [NodeType.STRIPE_TRIGGER]: StripeTriggerNode,
   [NodeType.GEMINI]: GeminiNode,
