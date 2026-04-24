@@ -177,74 +177,52 @@ export const workflowsRouter = createTRPCRouter({
       });
 
       // Transaction to ensure consistency
-      return await prisma.$transaction(async (tx) => {
-        const usedNodeIds = new Set<string>();
-        const firstNodeIdMapping = new Map<string, string>();
+      const usedNodeIds = new Set<string>();
+      const firstNodeIdMapping = new Map<string, string>();
 
-        const normalizedNodes = nodes.map((node, index) => {
-          const originalId = String(node.id || `node_${index + 1}`);
-          const scopedId = originalId.startsWith(`${id}__`)
-            ? originalId
-            : `${id}__${originalId}`;
-          let nextId = scopedId;
-          let suffix = 1;
+      const normalizedNodes = nodes.map((node, index) => {
+        const originalId = String(node.id || `node_${index + 1}`);
+        const scopedId = originalId.startsWith(`${id}__`)
+          ? originalId
+          : `${id}__${originalId}`;
+        let nextId = scopedId;
+        let suffix = 1;
 
-          while (usedNodeIds.has(nextId)) {
-            nextId = `${scopedId}_${suffix++}`;
-          }
+        while (usedNodeIds.has(nextId)) {
+          nextId = `${scopedId}_${suffix++}`;
+        }
 
-          usedNodeIds.add(nextId);
-          if (!firstNodeIdMapping.has(originalId)) {
-            firstNodeIdMapping.set(originalId, nextId);
-          }
+        usedNodeIds.add(nextId);
+        if (!firstNodeIdMapping.has(originalId)) {
+          firstNodeIdMapping.set(originalId, nextId);
+        }
 
-          return {
-            ...node,
-            id: nextId,
-            data: normalizePersistedNodeData(
-              (node.type as NodeType) ?? NodeType.INITIAL,
-              (node.data || {}) as Record<string, unknown>,
-            ),
-          };
-        });
+        return {
+          ...node,
+          id: nextId,
+          data: normalizePersistedNodeData(
+            (node.type as NodeType) ?? NodeType.INITIAL,
+            (node.data || {}) as Record<string, unknown>,
+          ),
+        };
+      });
 
-        let primaryScheduleNodeId: string | null = null;
-        const scheduleKeyToNodeId = new Map<string, string>();
-        const normalizedScheduleNodes = normalizedNodes.map((node) => {
-          if (node.type !== NodeType.SCHEDULE_TRIGGER) {
-            return node;
-          }
+      let primaryScheduleNodeId: string | null = null;
+      const scheduleKeyToNodeId = new Map<string, string>();
+      const normalizedScheduleNodes = normalizedNodes.map((node) => {
+        if (node.type !== NodeType.SCHEDULE_TRIGGER) {
+          return node;
+        }
 
-          const data = (node.data || {}) as Record<string, unknown>;
-          const enabled = data.enabled === true;
-          const cron = String(data.resolvedCronExpression || "");
-          const timezone = String(data.timezone || "UTC");
-          if (!enabled || !cron) {
-            return node;
-          }
+        const data = (node.data || {}) as Record<string, unknown>;
+        const enabled = data.enabled === true;
+        const cron = String(data.resolvedCronExpression || "");
+        const timezone = String(data.timezone || "UTC");
+        if (!enabled || !cron) {
+          return node;
+        }
 
-          if (primaryScheduleNodeId && primaryScheduleNodeId !== node.id) {
-            return {
-              ...node,
-              data: {
-                ...data,
-                active: false,
-                enabled: false,
-                nextRunAt: null,
-                lastError: `Duplicate schedule trigger detected. Keep one active schedule trigger per workflow (primary: ${primaryScheduleNodeId}).`,
-              },
-            };
-          }
-
-          primaryScheduleNodeId = node.id;
-
-          const key = `${cron}|${timezone}`;
-          const existingNodeId = scheduleKeyToNodeId.get(key);
-          if (!existingNodeId) {
-            scheduleKeyToNodeId.set(key, node.id);
-            return node;
-          }
-
+        if (primaryScheduleNodeId && primaryScheduleNodeId !== node.id) {
           return {
             ...node,
             data: {
@@ -252,76 +230,104 @@ export const workflowsRouter = createTRPCRouter({
               active: false,
               enabled: false,
               nextRunAt: null,
-              lastError: `Duplicate schedule detected with node ${existingNodeId}.`,
+              lastError: `Duplicate schedule trigger detected. Keep one active schedule trigger per workflow (primary: ${primaryScheduleNodeId}).`,
             },
           };
-        });
-
-        const seenConnections = new Set<string>();
-        const normalizedEdges = edges
-          .map((edge) => ({
-            ...edge,
-            source: firstNodeIdMapping.get(edge.source) ?? edge.source,
-            target: firstNodeIdMapping.get(edge.target) ?? edge.target,
-          }))
-          .filter(
-            (edge) =>
-              usedNodeIds.has(edge.source) && usedNodeIds.has(edge.target),
-          )
-          .filter((edge) => {
-            const key = `${edge.source}|${edge.target}|${edge.sourceHandle || "main"}|${edge.targetHandle || "main"}`;
-            if (seenConnections.has(key)) {
-              return false;
-            }
-            seenConnections.add(key);
-            return true;
-          });
-
-        //Delete existing connections first (foreign key constraint)
-        await tx.connection.deleteMany({
-          where: { workflowId: id },
-        });
-
-        //Delete existing nodes
-        await tx.node.deleteMany({
-          where: { workflowId: id },
-        });
-
-        //Create nodes
-        if (normalizedScheduleNodes.length > 0) {
-          await tx.node.createMany({
-            data: normalizedScheduleNodes.map((node) => ({
-              id: node.id,
-              workflowId: id,
-              name: node.type || "unknown",
-              type: node.type as NodeType,
-              position: node.position,
-              data: (node.data || {}) as Prisma.InputJsonValue,
-            })),
-          });
         }
 
-        //Create connections
-        if (normalizedEdges.length > 0) {
-          await tx.connection.createMany({
-            data: normalizedEdges.map((edge) => ({
-              workflowId: id,
-              fromNodeId: edge.source,
-              toNodeId: edge.target,
-              fromOutput: edge.sourceHandle || "main",
-              toInput: edge.targetHandle || "main",
-            })),
-          });
+        primaryScheduleNodeId = node.id;
+
+        const key = `${cron}|${timezone}`;
+        const existingNodeId = scheduleKeyToNodeId.get(key);
+        if (!existingNodeId) {
+          scheduleKeyToNodeId.set(key, node.id);
+          return node;
         }
 
-        //update workflow's updatedAt timestamp
-        await tx.workflow.update({
-          where: { id },
-          data: { updatedAt: new Date() },
-        });
-
-        return workflow;
+        return {
+          ...node,
+          data: {
+            ...data,
+            active: false,
+            enabled: false,
+            nextRunAt: null,
+            lastError: `Duplicate schedule detected with node ${existingNodeId}.`,
+          },
+        };
       });
+
+      const seenConnections = new Set<string>();
+      const normalizedEdges = edges
+        .map((edge) => ({
+          ...edge,
+          source: firstNodeIdMapping.get(edge.source) ?? edge.source,
+          target: firstNodeIdMapping.get(edge.target) ?? edge.target,
+        }))
+        .filter(
+          (edge) =>
+            usedNodeIds.has(edge.source) && usedNodeIds.has(edge.target),
+        )
+        .filter((edge) => {
+          const key = `${edge.source}|${edge.target}|${edge.sourceHandle || "main"}|${edge.targetHandle || "main"}`;
+          if (seenConnections.has(key)) {
+            return false;
+          }
+          seenConnections.add(key);
+          return true;
+        });
+
+      return await prisma.$transaction(
+        async (tx) => {
+          //Delete existing connections first (foreign key constraint)
+          await tx.connection.deleteMany({
+            where: { workflowId: id },
+          });
+
+          //Delete existing nodes
+          await tx.node.deleteMany({
+            where: { workflowId: id },
+          });
+
+          //Create nodes
+          if (normalizedScheduleNodes.length > 0) {
+            await tx.node.createMany({
+              data: normalizedScheduleNodes.map((node) => ({
+                id: node.id,
+                workflowId: id,
+                name: node.type || "unknown",
+                type: node.type as NodeType,
+                position: node.position,
+                data: (node.data || {}) as Prisma.InputJsonValue,
+              })),
+            });
+          }
+
+          //Create connections
+          if (normalizedEdges.length > 0) {
+            await tx.connection.createMany({
+              data: normalizedEdges.map((edge) => ({
+                workflowId: id,
+                fromNodeId: edge.source,
+                toNodeId: edge.target,
+                fromOutput: edge.sourceHandle || "main",
+                toInput: edge.targetHandle || "main",
+              })),
+            });
+          }
+
+          //update workflow's updatedAt timestamp
+          await tx.workflow.update({
+            where: { id },
+            data: { updatedAt: new Date() },
+          });
+
+          return workflow;
+        },
+        {
+          maxWait: 10_000,
+          timeout: 30_000,
+        },
+      );
     }),
   updateName: protectedProcedure
     .input(z.object({ id: z.string(), name: z.string().min(1) }))

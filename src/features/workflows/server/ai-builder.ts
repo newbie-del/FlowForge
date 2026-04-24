@@ -163,6 +163,21 @@ ACTIONS (do things):
 - CODE: Execute sandboxed JavaScript.
   Fields: variableName, code, timeoutMs
 
+- BROWSER_SCRAPER: Fetch pages and extract web data.
+  Fields: variableName, url, method (GET|POST), mode (simple_fetch|html_scrape|extract_data), selectors
+
+- RESUME_CV: Manage and choose resume files.
+  Fields: operation, variableName, selectedResumeKey, jobTitlePath, resumes
+
+- RANDOM_DELAY: Add random human-like delay.
+  Fields: variableName, minDelay, maxDelay, mode (seconds|minutes), showGeneratedDelay
+
+- LOGGER: Structured execution logs.
+  Fields: variableName, level, message, includeInputPayload, includeTimestamp
+
+- ERROR_HANDLER: Handle failures with retries/fallback.
+  Fields: variableName, errorPath, retryCount, retryDelaySeconds, fallbackMessage, continueWorkflow
+
 - IF: Branch workflow into TRUE/FALSE paths using conditions.
   Fields: conditions[{leftValue, operator, rightValue}], combineOperation (all|any), caseSensitive
   Connections: use fromOutput="if-true" for TRUE branch and fromOutput="if-false" for FALSE branch
@@ -253,6 +268,16 @@ function getNodeTitle(type: NodeType) {
       return "Loop Over Items";
     case NodeType.CODE:
       return "Code";
+    case NodeType.BROWSER_SCRAPER:
+      return "Browser / Scraper";
+    case NodeType.RESUME_CV:
+      return "Resume / CV";
+    case NodeType.RANDOM_DELAY:
+      return "Random Delay";
+    case NodeType.LOGGER:
+      return "Logger";
+    case NodeType.ERROR_HANDLER:
+      return "Error Handler";
     case NodeType.GOOGLE_FORM_TRIGGER:
       return "Google Form Trigger";
     case NodeType.STRIPE_TRIGGER:
@@ -395,6 +420,73 @@ function ensureNodeDefaults(node: AiWorkflowPlan["nodes"][number]) {
             typeof data.code === "string" && data.code.trim()
               ? data.code
               : 'return items.filter((item) => String(item?.title ?? "").includes("React"));',
+        },
+      };
+    case NodeType.BROWSER_SCRAPER:
+      return {
+        ...node,
+        data: {
+          variableName: String(data.variableName ?? "scraperResult"),
+          url: String(data.url ?? ""),
+          method: String(data.method ?? "GET"),
+          mode: String(data.mode ?? "html_scrape"),
+          requestBody: String(data.requestBody ?? ""),
+          headersJson:
+            typeof data.headersJson === "string" ? data.headersJson : "{}",
+          userAgent: String(data.userAgent ?? "default"),
+          customUserAgent: String(data.customUserAgent ?? ""),
+          timeoutMs:
+            typeof data.timeoutMs === "number" ? data.timeoutMs : 15000,
+          followRedirects: Boolean(data.followRedirects ?? true),
+          selectors: Array.isArray(data.selectors) ? data.selectors : [],
+        },
+      };
+    case NodeType.RESUME_CV:
+      return {
+        ...node,
+        data: {
+          operation: String(data.operation ?? "auto_choose_by_role"),
+          variableName: String(data.variableName ?? "resumeFile"),
+          selectedResumeKey: String(data.selectedResumeKey ?? "general"),
+          jobTitlePath: String(data.jobTitlePath ?? "item.title"),
+          resumes: Array.isArray(data.resumes) ? data.resumes : [],
+        },
+      };
+    case NodeType.RANDOM_DELAY:
+      return {
+        ...node,
+        data: {
+          variableName: String(data.variableName ?? "randomDelay"),
+          minDelay: typeof data.minDelay === "number" ? data.minDelay : 10,
+          maxDelay: typeof data.maxDelay === "number" ? data.maxDelay : 45,
+          mode: String(data.mode ?? "seconds"),
+          showGeneratedDelay: Boolean(data.showGeneratedDelay ?? true),
+        },
+      };
+    case NodeType.LOGGER:
+      return {
+        ...node,
+        data: {
+          variableName: String(data.variableName ?? "logEntry"),
+          level: String(data.level ?? "info"),
+          message: String(data.message ?? ""),
+          includeInputPayload: Boolean(data.includeInputPayload ?? false),
+          includeTimestamp: Boolean(data.includeTimestamp ?? true),
+        },
+      };
+    case NodeType.ERROR_HANDLER:
+      return {
+        ...node,
+        data: {
+          variableName: String(data.variableName ?? "errorHandler"),
+          errorPath: String(data.errorPath ?? "__lastError"),
+          retryCount: typeof data.retryCount === "number" ? data.retryCount : 1,
+          retryDelaySeconds:
+            typeof data.retryDelaySeconds === "number"
+              ? data.retryDelaySeconds
+              : 30,
+          fallbackMessage: String(data.fallbackMessage ?? "Step failed."),
+          continueWorkflow: Boolean(data.continueWorkflow ?? true),
         },
       };
     case NodeType.HTTP_REQUEST:
@@ -1642,6 +1734,56 @@ function computeMissingInputs(plan: AiWorkflowPlan) {
         });
       }
     }
+
+    if (
+      node.type === NodeType.BROWSER_SCRAPER &&
+      !String(node.data.url ?? "").trim()
+    ) {
+      push({
+        nodeId: node.id,
+        field: "url",
+        question: "Which webpage URL should be scraped?",
+        whyItMatters: "Browser/Scraper node requires URL to fetch content.",
+        example: "https://example.com/jobs",
+      });
+    }
+
+    if (node.type === NodeType.RESUME_CV && !Array.isArray(node.data.resumes)) {
+      push({
+        nodeId: node.id,
+        field: "resumes",
+        question:
+          "Which resume files should be saved (frontend/backend/general)?",
+        whyItMatters: "Resume/CV node needs at least one uploaded resume file.",
+      });
+    }
+
+    if (
+      node.type === NodeType.RANDOM_DELAY &&
+      Number(node.data.maxDelay ?? 0) < Number(node.data.minDelay ?? 0)
+    ) {
+      push({
+        nodeId: node.id,
+        field: "maxDelay",
+        question: "What should the maximum random delay be?",
+        whyItMatters: "Random delay requires max value >= min value.",
+        example: "45",
+      });
+    }
+
+    if (
+      node.type === NodeType.ERROR_HANDLER &&
+      !String(node.data.errorPath ?? "").trim()
+    ) {
+      push({
+        nodeId: node.id,
+        field: "errorPath",
+        question: "Where should this node read the error payload from?",
+        whyItMatters:
+          "Error handler needs a context path to extract failure details.",
+        example: "__lastError",
+      });
+    }
   }
 
   return questions;
@@ -1796,6 +1938,33 @@ function buildFallbackPlan(params: {
   }
 
   if (
+    normalizedPrompt.includes("scrape") ||
+    normalizedPrompt.includes("browser") ||
+    normalizedPrompt.includes("extract website") ||
+    normalizedPrompt.includes("fetch page")
+  ) {
+    pushNode({
+      id: makeId("browser"),
+      type: NodeType.BROWSER_SCRAPER,
+      title: "Browser / Scraper",
+      description: "Fetch and extract webpage data",
+      data: {
+        variableName: "scraperResult",
+        url: "",
+        method: "GET",
+        mode: "html_scrape",
+        requestBody: "",
+        headersJson: "{}",
+        userAgent: "default",
+        customUserAgent: "",
+        timeoutMs: 15000,
+        followRedirects: true,
+        selectors: [],
+      },
+    });
+  }
+
+  if (
     normalizedPrompt.includes("for each") ||
     normalizedPrompt.includes("loop") ||
     normalizedPrompt.includes("each item")
@@ -1834,6 +2003,88 @@ function buildFallbackPlan(params: {
         timeoutMs: 3000,
         template: "filter_items",
         code: 'return items.filter((item) => String(item?.title ?? "").includes("React"));',
+      },
+    });
+  }
+
+  if (
+    normalizedPrompt.includes("resume") ||
+    normalizedPrompt.includes("cv") ||
+    normalizedPrompt.includes("attach resume")
+  ) {
+    pushNode({
+      id: makeId("resume"),
+      type: NodeType.RESUME_CV,
+      title: "Resume / CV",
+      description: "Choose resume file by role",
+      data: {
+        operation: "auto_choose_by_role",
+        variableName: "resumeFile",
+        selectedResumeKey: "general",
+        jobTitlePath: "item.title",
+        resumes: [],
+      },
+    });
+  }
+
+  if (
+    normalizedPrompt.includes("random delay") ||
+    normalizedPrompt.includes("human delay") ||
+    normalizedPrompt.includes("wait random")
+  ) {
+    pushNode({
+      id: makeId("random_delay"),
+      type: NodeType.RANDOM_DELAY,
+      title: "Random Delay",
+      description: "Pause with random interval",
+      data: {
+        variableName: "randomDelay",
+        minDelay: 10,
+        maxDelay: 45,
+        mode: "seconds",
+        showGeneratedDelay: true,
+      },
+    });
+  }
+
+  if (
+    normalizedPrompt.includes("log") ||
+    normalizedPrompt.includes("debug") ||
+    normalizedPrompt.includes("track")
+  ) {
+    pushNode({
+      id: makeId("logger"),
+      type: NodeType.LOGGER,
+      title: "Logger",
+      description: "Track workflow events",
+      data: {
+        variableName: "logEntry",
+        level: "info",
+        message: "Workflow log",
+        includeInputPayload: false,
+        includeTimestamp: true,
+      },
+    });
+  }
+
+  if (
+    normalizedPrompt.includes("on error") ||
+    normalizedPrompt.includes("fallback") ||
+    normalizedPrompt.includes("if failed") ||
+    normalizedPrompt.includes("retry")
+  ) {
+    pushNode({
+      id: makeId("error_handler"),
+      type: NodeType.ERROR_HANDLER,
+      title: "Error Handler",
+      description: "Retry and fallback handling",
+      data: {
+        variableName: "errorHandler",
+        errorPath: "__lastError",
+        retryCount: 1,
+        retryDelaySeconds: 30,
+        fallbackMessage: "Step failed.",
+        continueWorkflow: true,
       },
     });
   }

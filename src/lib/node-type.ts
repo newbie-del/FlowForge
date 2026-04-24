@@ -10,6 +10,13 @@ export const MERGE_NODE_TYPE = NodeType.MERGE ?? "MERGE";
 export const LOOP_OVER_ITEMS_NODE_TYPE =
   NodeType.LOOP_OVER_ITEMS ?? "LOOP_OVER_ITEMS";
 export const CODE_NODE_TYPE = NodeType.CODE ?? "CODE";
+export const BROWSER_SCRAPER_NODE_TYPE =
+  NodeType.BROWSER_SCRAPER ?? "BROWSER_SCRAPER";
+export const RESUME_CV_NODE_TYPE = NodeType.RESUME_CV ?? "RESUME_CV";
+export const RANDOM_DELAY_NODE_TYPE = NodeType.RANDOM_DELAY ?? "RANDOM_DELAY";
+export const LOGGER_NODE_TYPE = NodeType.LOGGER ?? "LOGGER";
+export const ERROR_HANDLER_NODE_TYPE =
+  NodeType.ERROR_HANDLER ?? "ERROR_HANDLER";
 
 export function normalizeNodeType(type: string | null | undefined) {
   if (!type) {

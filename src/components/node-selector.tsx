@@ -3,16 +3,19 @@
 import { createId } from "@paralleldrive/cuid2";
 import { useReactFlow } from "@xyflow/react";
 import {
-  Code2Icon,
+  AlertTriangleIcon,
   Clock3Icon,
+  Code2Icon,
+  FileTextIcon,
   GitBranchIcon,
   GlobeIcon,
-  MergeIcon,
   MailIcon,
+  MergeIcon,
   MousePointerIcon,
   PauseCircleIcon,
   PencilLineIcon,
   RepeatIcon,
+  TerminalSquareIcon,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback } from "react";
@@ -27,13 +30,18 @@ import {
 } from "@/components/ui/sheet";
 import { NodeType } from "@/generated/prisma";
 import {
+  BROWSER_SCRAPER_NODE_TYPE,
   CODE_NODE_TYPE,
+  ERROR_HANDLER_NODE_TYPE,
   isManualTriggerType,
+  LOGGER_NODE_TYPE,
   LOOP_OVER_ITEMS_NODE_TYPE,
   MERGE_NODE_TYPE,
   normalizeNodeType,
-  SET_NODE_TYPE,
+  RANDOM_DELAY_NODE_TYPE,
+  RESUME_CV_NODE_TYPE,
   SCHEDULE_TRIGGER_TYPE,
+  SET_NODE_TYPE,
 } from "@/lib/node-type";
 import { Separator } from "./ui/separator";
 
@@ -101,7 +109,8 @@ const executionNodes: NodeTypeOption[] = [
   {
     type: LOOP_OVER_ITEMS_NODE_TYPE,
     label: "Loop Over Items",
-    description: "Iterate over array items sequentially, parallel, or in batch.",
+    description:
+      "Iterate over array items sequentially, parallel, or in batch.",
     icon: RepeatIcon,
   },
   {
@@ -109,6 +118,36 @@ const executionNodes: NodeTypeOption[] = [
     label: "Code",
     description: "Run custom JavaScript logic.",
     icon: Code2Icon,
+  },
+  {
+    type: BROWSER_SCRAPER_NODE_TYPE,
+    label: "Browser / Scraper",
+    description: "Fetch and scrape webpage content.",
+    icon: GlobeIcon,
+  },
+  {
+    type: RESUME_CV_NODE_TYPE,
+    label: "Resume / CV",
+    description: "Upload and choose resume files for job workflows.",
+    icon: FileTextIcon,
+  },
+  {
+    type: RANDOM_DELAY_NODE_TYPE,
+    label: "Random Delay",
+    description: "Wait for a random delay range.",
+    icon: Clock3Icon,
+  },
+  {
+    type: LOGGER_NODE_TYPE,
+    label: "Logger",
+    description: "Track workflow steps with structured logs.",
+    icon: TerminalSquareIcon,
+  },
+  {
+    type: ERROR_HANDLER_NODE_TYPE,
+    label: "Error Handler",
+    description: "Handle failures with retry and fallback metadata.",
+    icon: AlertTriangleIcon,
   },
   {
     type: NodeType.HTTP_REQUEST,

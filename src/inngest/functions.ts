@@ -17,18 +17,23 @@ import {
 import { ExecutionStatus, NodeType, type Prisma } from "@/generated/prisma";
 import prisma from "@/lib/db";
 import { anthropicChannel } from "./channels/anthropic";
+import { browserScraperNodeChannel } from "./channels/browser-scraper-node";
 import { codeNodeChannel } from "./channels/code-node";
 import { discordChannel } from "./channels/discord";
 import { emailChannel } from "./channels/email";
+import { errorHandlerNodeChannel } from "./channels/error-handler-node";
 import { geminiChannel } from "./channels/gemini";
 import { googleFormTriggerChannel } from "./channels/google-form-trigger";
 import { googleSheetsChannel } from "./channels/google-sheets";
 import { httpRequestChannel } from "./channels/http-request";
 import { ifNodeChannel } from "./channels/if-node";
+import { loggerNodeChannel } from "./channels/logger-node";
 import { loopOverItemsChannel } from "./channels/loop-over-items";
 import { manualTriggerChannel } from "./channels/manual-trigger";
 import { mergeNodeChannel } from "./channels/merge-node";
 import { openAiChannel } from "./channels/openai";
+import { randomDelayNodeChannel } from "./channels/random-delay-node";
+import { resumeCvNodeChannel } from "./channels/resume-cv-node";
 import { scheduleTriggerChannel } from "./channels/schedule-trigger";
 import { setNodeChannel } from "./channels/set-node";
 import { slackChannel } from "./channels/slack";
@@ -120,6 +125,11 @@ export const executeWorkflow = inngest.createFunction(
       mergeNodeChannel(),
       loopOverItemsChannel(),
       codeNodeChannel(),
+      browserScraperNodeChannel(),
+      resumeCvNodeChannel(),
+      randomDelayNodeChannel(),
+      loggerNodeChannel(),
+      errorHandlerNodeChannel(),
     ],
   },
   async ({ event, step, publish }) => {
@@ -253,31 +263,82 @@ export const executeWorkflow = inngest.createFunction(
         const loopData = node.data as LoopOverItemsNodeData;
         const loopPlan = buildLoopPlan(loopData, context);
         const outgoing = outgoingByNodeId.get(node.id) ?? [];
+        const loopStartNodeIds = new Set(
+          outgoing
+            .map((connection) => connection.toNodeId)
+            .filter((targetId) => nodeById.has(targetId)),
+        );
+        const loopOutputHandles = new Set(
+          outgoing.map((connection) => connection.fromOutput || "main"),
+        );
 
-        if (outgoing.length > 1) {
-          throw new NonRetriableError(
-            "Loop Over Items currently supports one outgoing branch.",
-          );
-        }
+        if (loopStartNodeIds.size > 0 && loopPlan.units.length > 0) {
+          const runLoopBranch = async (
+            baseContext: Record<string, unknown>,
+            unitIndex: number,
+          ) => {
+            let loopContext = baseContext;
+            const loopExecutedNodeIds = new Set<string>([node.id]);
+            const loopSelectedOutputsByNodeId = new Map<string, Set<string>>([
+              [node.id, new Set(loopOutputHandles)],
+            ]);
 
-        const firstTargetId = outgoing[0]?.toNodeId;
-        if (firstTargetId && loopPlan.units.length > 0) {
-          const linearChain: string[] = [];
-          let currentNodeId: string | undefined = firstTargetId;
-          while (currentNodeId) {
-            const currentNode = nodeById.get(currentNodeId);
-            if (!currentNode) break;
-            linearChain.push(currentNodeId);
+            for (const branchNode of sortedNodes) {
+              if (branchNode.id === node.id) {
+                continue;
+              }
 
-            const currentOutgoing = (outgoingByNodeId.get(currentNodeId) ??
-              []) as typeof workflowConnections;
-            const currentIncoming = (incomingByNodeId.get(currentNodeId) ??
-              []) as typeof workflowConnections;
-            if (currentIncoming.length > 1 || currentOutgoing.length !== 1) {
-              break;
+              const incomingConnections =
+                incomingByNodeId.get(branchNode.id) ?? [];
+              const shouldExecuteAsStart = loopStartNodeIds.has(branchNode.id);
+              const shouldExecuteFromIncoming = incomingConnections.some(
+                (connection) => {
+                  if (!loopExecutedNodeIds.has(connection.fromNodeId)) {
+                    return false;
+                  }
+                  const selectedOutputs =
+                    loopSelectedOutputsByNodeId.get(connection.fromNodeId) ??
+                    null;
+                  if (!selectedOutputs || selectedOutputs.size === 0) {
+                    return true;
+                  }
+
+                  const fromOutput = connection.fromOutput || "main";
+                  return selectedOutputs.has(fromOutput);
+                },
+              );
+
+              if (!shouldExecuteAsStart && !shouldExecuteFromIncoming) {
+                continue;
+              }
+
+              const branchExecutor = getExecutor(branchNode.type as NodeType);
+              const runtimeBranchNodeId = `${branchNode.id}__loop_${unitIndex + 1}`;
+              loopContext = await branchExecutor({
+                data: branchNode.data as Record<string, unknown>,
+                nodeId: runtimeBranchNodeId,
+                userId,
+                context: loopContext,
+                step,
+                publish,
+              });
+
+              loopExecutedNodeIds.add(branchNode.id);
+              const routeOutputs = getNodeRoute(
+                loopContext,
+                runtimeBranchNodeId,
+              );
+              const fallbackOutputs = new Set(
+                (outgoingByNodeId.get(branchNode.id) ?? []).map(
+                  (connection) => connection.fromOutput || "main",
+                ),
+              );
+              loopSelectedOutputsByNodeId.set(
+                branchNode.id,
+                routeOutputs?.length ? new Set(routeOutputs) : fallbackOutputs,
+              );
             }
-            currentNodeId = currentOutgoing[0]?.toNodeId;
-          }
+          };
 
           let processed = 0;
           let failed = 0;
@@ -302,30 +363,26 @@ export const executeWorkflow = inngest.createFunction(
             unitIndex: number,
           ) => {
             const singleItem = unit.items[0];
-            let loopContext: Record<string, unknown> = {
+            const unitPayload = {
+              item: unit.isBatch ? unit.items : singleItem,
+              index: unit.index,
+              total: loopPlan.totalItems,
+            };
+            const loopContext: Record<string, unknown> = {
               ...context,
               [loopPlan.itemVariableName]: unit.isBatch
                 ? unit.items
                 : singleItem,
+              item: unit.isBatch ? unit.items : singleItem,
+              currentItem: unit.isBatch ? unit.items : singleItem,
+              index: unit.index,
+              total: loopPlan.totalItems,
               items: unit.isBatch ? unit.items : [singleItem],
-              payload: unit.isBatch ? unit.items : singleItem,
+              payload: unitPayload,
             };
 
             try {
-              for (const chainNodeId of linearChain) {
-                const chainNode = nodeById.get(chainNodeId);
-                if (!chainNode) continue;
-                const chainExecutor = getExecutor(chainNode.type as NodeType);
-                const runtimeLoopNodeId = `${chainNode.id}__loop_${unitIndex + 1}`;
-                loopContext = await chainExecutor({
-                  data: chainNode.data as Record<string, unknown>,
-                  nodeId: runtimeLoopNodeId,
-                  userId,
-                  context: loopContext,
-                  step,
-                  publish,
-                });
-              }
+              await runLoopBranch(loopContext, unitIndex);
               processed += unit.items.length;
               await publishLoopProgress("loading");
             } catch (error) {

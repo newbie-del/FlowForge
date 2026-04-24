@@ -237,6 +237,21 @@ export class WorkflowValidator {
       case NodeType.CODE:
         this.validateCodeNode(node);
         break;
+      case NodeType.BROWSER_SCRAPER:
+        this.validateBrowserScraperNode(node);
+        break;
+      case NodeType.RESUME_CV:
+        this.validateResumeCvNode(node);
+        break;
+      case NodeType.RANDOM_DELAY:
+        this.validateRandomDelayNode(node);
+        break;
+      case NodeType.LOGGER:
+        this.validateLoggerNode(node);
+        break;
+      case NodeType.ERROR_HANDLER:
+        this.validateErrorHandlerNode(node);
+        break;
     }
   }
 
@@ -552,6 +567,122 @@ export class WorkflowValidator {
         "timeoutMs",
         "Code timeout should be between 250 and 10000 ms",
       );
+    }
+  }
+
+  private validateBrowserScraperNode(node: AiWorkflowNode): void {
+    const url = String(node.data.url ?? "").trim();
+    if (!url) {
+      this.addError("error", node.id, "url", "Browser/Scraper URL is required");
+    } else if (!this.isValidUrl(url) && !this.isTemplate(url)) {
+      this.addError("error", node.id, "url", "Browser/Scraper URL is invalid");
+    }
+
+    const mode = String(node.data.mode ?? "simple_fetch");
+    if (!["simple_fetch", "html_scrape", "extract_data"].includes(mode)) {
+      this.addError("error", node.id, "mode", `Invalid scraper mode: ${mode}`);
+    }
+
+    const timeout = Number(node.data.timeoutMs ?? 15000);
+    if (!Number.isFinite(timeout) || timeout < 1000 || timeout > 120000) {
+      this.addError(
+        "error",
+        node.id,
+        "timeoutMs",
+        "Browser/Scraper timeout must be between 1000 and 120000 ms",
+      );
+    }
+
+    if (mode === "extract_data") {
+      const selectors = Array.isArray(node.data.selectors)
+        ? node.data.selectors
+        : [];
+      if (selectors.length === 0) {
+        this.addError(
+          "error",
+          node.id,
+          "selectors",
+          "Extract mode requires at least one selector",
+        );
+      }
+    }
+  }
+
+  private validateResumeCvNode(node: AiWorkflowNode): void {
+    const operation = String(node.data.operation ?? "auto_choose_by_role");
+    const validOperations = [
+      "upload_resume",
+      "select_resume",
+      "auto_choose_by_role",
+      "output_file",
+      "analyze_resume",
+    ];
+    if (!validOperations.includes(operation)) {
+      this.addError(
+        "error",
+        node.id,
+        "operation",
+        `Invalid resume operation: ${operation}`,
+      );
+    }
+
+    const resumes = Array.isArray(node.data.resumes) ? node.data.resumes : [];
+    if (resumes.length === 0) {
+      this.addError(
+        "warning",
+        node.id,
+        "resumes",
+        "No resumes uploaded yet for Resume/CV node",
+      );
+    }
+  }
+
+  private validateRandomDelayNode(node: AiWorkflowNode): void {
+    const minDelay = Number(node.data.minDelay ?? 0);
+    const maxDelay = Number(node.data.maxDelay ?? 0);
+    if (!Number.isFinite(minDelay) || minDelay < 0) {
+      this.addError("error", node.id, "minDelay", "Min delay must be >= 0");
+    }
+    if (!Number.isFinite(maxDelay) || maxDelay < 0) {
+      this.addError("error", node.id, "maxDelay", "Max delay must be >= 0");
+    }
+    if (
+      Number.isFinite(minDelay) &&
+      Number.isFinite(maxDelay) &&
+      maxDelay < minDelay
+    ) {
+      this.addError(
+        "error",
+        node.id,
+        "maxDelay",
+        "Max delay must be >= min delay",
+      );
+    }
+  }
+
+  private validateLoggerNode(node: AiWorkflowNode): void {
+    const level = String(node.data.level ?? "info");
+    if (!["info", "warning", "error", "debug"].includes(level)) {
+      this.addError("error", node.id, "level", `Invalid log level: ${level}`);
+    }
+  }
+
+  private validateErrorHandlerNode(node: AiWorkflowNode): void {
+    const retryCount = Number(node.data.retryCount ?? 0);
+    const retryDelaySeconds = Number(node.data.retryDelaySeconds ?? 30);
+    if (!Number.isFinite(retryCount) || retryCount < 0) {
+      this.addError("error", node.id, "retryCount", "Retry count must be >= 0");
+    }
+    if (!Number.isFinite(retryDelaySeconds) || retryDelaySeconds < 0) {
+      this.addError(
+        "error",
+        node.id,
+        "retryDelaySeconds",
+        "Retry delay must be >= 0",
+      );
+    }
+    if (!String(node.data.errorPath ?? "").trim()) {
+      this.addError("error", node.id, "errorPath", "Error path is required");
     }
   }
 
