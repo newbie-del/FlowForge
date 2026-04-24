@@ -161,6 +161,91 @@ export const nodeInputSchemas: Record<NodeType, z.ZodSchema> = {
     })
     .strict(),
 
+  [NodeType.BROWSER_SCRAPER]: z
+    .object({
+      variableName: z.string().min(1),
+      url: z.string().min(1),
+      method: z.enum(["GET", "POST"]).optional(),
+      mode: z.enum(["simple_fetch", "html_scrape", "extract_data"]).optional(),
+      requestBody: z.string().optional(),
+      headersJson: z.string().optional(),
+      userAgent: z.enum(["default", "chrome", "firefox", "custom"]).optional(),
+      customUserAgent: z.string().optional(),
+      timeoutMs: z.number().int().min(1000).max(120000).optional(),
+      followRedirects: z.boolean().optional(),
+      selectors: z
+        .array(
+          z.object({
+            key: z.string().min(1),
+            selector: z.string().min(1),
+            extract: z.enum(["text", "html", "attr"]).optional(),
+            attr: z.string().optional(),
+            multiple: z.boolean().optional(),
+          }),
+        )
+        .optional(),
+    })
+    .strict(),
+
+  [NodeType.RESUME_CV]: z
+    .object({
+      operation: z
+        .enum([
+          "upload_resume",
+          "select_resume",
+          "auto_choose_by_role",
+          "output_file",
+          "analyze_resume",
+        ])
+        .optional(),
+      variableName: z.string().min(1),
+      selectedResumeKey: z.enum(["frontend", "backend", "general"]).optional(),
+      jobTitlePath: z.string().optional(),
+      resumes: z
+        .array(
+          z.object({
+            key: z.enum(["frontend", "backend", "general"]),
+            label: z.string().min(1),
+            fileName: z.string().optional(),
+            mimeType: z.string().optional(),
+            base64: z.string().optional(),
+          }),
+        )
+        .optional(),
+    })
+    .strict(),
+
+  [NodeType.RANDOM_DELAY]: z
+    .object({
+      variableName: z.string().min(1),
+      minDelay: z.number().int().min(0),
+      maxDelay: z.number().int().min(0),
+      mode: z.enum(["seconds", "minutes"]).optional(),
+      showGeneratedDelay: z.boolean().optional(),
+    })
+    .strict(),
+
+  [NodeType.LOGGER]: z
+    .object({
+      variableName: z.string().min(1),
+      level: z.enum(["info", "warning", "error", "debug"]).optional(),
+      message: z.string().optional(),
+      includeInputPayload: z.boolean().optional(),
+      includeTimestamp: z.boolean().optional(),
+    })
+    .strict(),
+
+  [NodeType.ERROR_HANDLER]: z
+    .object({
+      variableName: z.string().min(1),
+      errorPath: z.string().min(1).optional(),
+      retryCount: z.number().int().min(0).optional(),
+      retryDelaySeconds: z.number().int().min(0).optional(),
+      fallbackMessage: z.string().optional(),
+      continueWorkflow: z.boolean().optional(),
+    })
+    .strict(),
+
   [NodeType.GOOGLE_FORM_TRIGGER]: z
     .object({
       formId: z.string().optional(),
@@ -375,6 +460,66 @@ export const nodeOutputSchemas: Record<NodeType, NodeOutput> = {
     variableName: "",
     structure: "{ [variableName]: unknown }",
     example: { codeResult: [{ title: "React Developer" }] },
+  },
+
+  [NodeType.BROWSER_SCRAPER]: {
+    variableName: "",
+    structure:
+      "{ [variableName]: { url: string, status: number, title?: string, text?: string, links?: string[], html: string, extracted?: Record<string, unknown> } }",
+    example: {
+      scraperResult: {
+        url: "https://jobs.example.com",
+        status: 200,
+        title: "Jobs",
+        links: ["/job/1", "/job/2"],
+      },
+    },
+  },
+
+  [NodeType.RESUME_CV]: {
+    variableName: "",
+    structure:
+      '{ [variableName]: { fileName: string, filePath: string, type: "pdf" | "docx", mimeType: string } }',
+    example: {
+      resumeFile: {
+        fileName: "frontend-resume.pdf",
+        filePath: "node://resume/frontend/frontend-resume.pdf",
+        type: "pdf",
+      },
+    },
+  },
+
+  [NodeType.RANDOM_DELAY]: {
+    variableName: "",
+    structure:
+      '{ [variableName]: { waited: number, unit: "seconds" | "minutes" } }',
+    example: { randomDelay: { waited: 27, unit: "seconds" } },
+  },
+
+  [NodeType.LOGGER]: {
+    variableName: "",
+    structure:
+      "{ [variableName]: { level: string, message: string, timestamp?: ISO8601 } }",
+    example: {
+      logEntry: {
+        level: "info",
+        message: "Job applied successfully",
+      },
+    },
+  },
+
+  [NodeType.ERROR_HANDLER]: {
+    variableName: "",
+    structure:
+      "{ [variableName]: { failedNode: string, error: string, retriesAttempted: number, continueWorkflow: boolean } }",
+    example: {
+      errorHandler: {
+        failedNode: "http_1",
+        error: "Request failed",
+        retriesAttempted: 1,
+        continueWorkflow: true,
+      },
+    },
   },
 
   [NodeType.GOOGLE_FORM_TRIGGER]: {
@@ -706,6 +851,107 @@ export const nodeRequirements: Record<NodeType, NodeRequirement[]> = {
       required: true,
       type: "string",
       canUseTemplate: false,
+    },
+  ],
+
+  [NodeType.BROWSER_SCRAPER]: [
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    {
+      field: "url",
+      required: true,
+      type: "url",
+      canUseTemplate: true,
+    },
+    {
+      field: "mode",
+      required: true,
+      type: "enum",
+      canUseTemplate: false,
+      examples: ["simple_fetch", "html_scrape", "extract_data"],
+    },
+  ],
+
+  [NodeType.RESUME_CV]: [
+    {
+      field: "operation",
+      required: true,
+      type: "enum",
+      canUseTemplate: false,
+      examples: [
+        "upload_resume",
+        "select_resume",
+        "auto_choose_by_role",
+        "output_file",
+      ],
+    },
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+  ],
+
+  [NodeType.RANDOM_DELAY]: [
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    {
+      field: "minDelay",
+      required: true,
+      type: "number",
+      canUseTemplate: false,
+    },
+    {
+      field: "maxDelay",
+      required: true,
+      type: "number",
+      canUseTemplate: false,
+    },
+  ],
+
+  [NodeType.LOGGER]: [
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    {
+      field: "level",
+      required: true,
+      type: "enum",
+      canUseTemplate: false,
+      examples: ["info", "warning", "error", "debug"],
+    },
+    {
+      field: "message",
+      required: false,
+      type: "string",
+      canUseTemplate: true,
+    },
+  ],
+
+  [NodeType.ERROR_HANDLER]: [
+    {
+      field: "variableName",
+      required: true,
+      type: "string",
+      canUseTemplate: false,
+    },
+    {
+      field: "errorPath",
+      required: true,
+      type: "string",
+      canUseTemplate: true,
     },
   ],
 

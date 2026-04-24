@@ -4,16 +4,21 @@ import { scheduleTriggerExecutor } from "@/features/triggers/components/schedule
 import { stripeTriggerExecutor } from "@/features/triggers/components/stripe-trigger/executor";
 import { NodeType } from "@/generated/prisma";
 import { anthropicExecutor } from "../components/anthropic/executor";
+import { browserScraperExecutor } from "../components/browser-scraper/executor";
+import { codeExecutor } from "../components/code/executor";
 import { discordExecutor } from "../components/discord/executor";
 import { emailExecutor } from "../components/email/executor";
+import { errorHandlerExecutor } from "../components/error-handler/executor";
 import { geminiExecutor } from "../components/gemini/executor";
 import { googleSheetsExecutor } from "../components/google-sheets/executor";
 import { httpRequestExecutor } from "../components/http-request/executor";
 import { ifNodeExecutor } from "../components/if/executor";
-import { codeExecutor } from "../components/code/executor";
+import { loggerExecutor } from "../components/logger/executor";
 import { loopOverItemsExecutor } from "../components/loop-over-items/executor";
 import { mergeExecutor } from "../components/merge/executor";
 import { openAiExecutor } from "../components/openai/executor";
+import { randomDelayExecutor } from "../components/random-delay/executor";
+import { resumeCvExecutor } from "../components/resume-cv/executor";
 import { setExecutor } from "../components/set/executor";
 import { slackExecutor } from "../components/slack/executor";
 import { telegramExecutor } from "../components/telegram/executor";
@@ -30,6 +35,11 @@ export const executorRegistry: Record<NodeType, NodeExecutor> = {
   [NodeType.MERGE]: mergeExecutor,
   [NodeType.LOOP_OVER_ITEMS]: loopOverItemsExecutor,
   [NodeType.CODE]: codeExecutor,
+  [NodeType.BROWSER_SCRAPER]: browserScraperExecutor,
+  [NodeType.RESUME_CV]: resumeCvExecutor,
+  [NodeType.RANDOM_DELAY]: randomDelayExecutor,
+  [NodeType.LOGGER]: loggerExecutor,
+  [NodeType.ERROR_HANDLER]: errorHandlerExecutor,
   [NodeType.HTTP_REQUEST]: httpRequestExecutor,
   [NodeType.GOOGLE_FORM_TRIGGER]: googleFormTriggerExecutor,
   [NodeType.STRIPE_TRIGGER]: stripeTriggerExecutor,
